@@ -15,13 +15,35 @@ The more it understands, the less reliable the game becomes.
 
 ## Play it
 
-Open `index.html` through any local web server (it uses ES modules, so
-`file://` won't work):
+The quickest way, and the only one that needs nothing installed:
+
+```bash
+npm run build      # writes dist/index.html
+```
+
+`dist/index.html` inlines the CSS and flattens the modules into one file, so you
+can double-click it, mail it to someone, or drop it on any static host. No
+server, no build step on the other end.
+
+To run the unbundled source instead — which is what you want while editing, since
+there's no rebuild in the loop — it needs a web server, because browsers refuse
+ES modules over `file://`:
 
 ```bash
 npm start          # python3 -m http.server 8080
 # then open http://localhost:8080
 ```
+
+### Hosting it on GitHub Pages
+
+`.github/workflows/pages.yml` deploys the repo root on every push to `main`, but
+it can't turn Pages on for you — creating a Pages site is one of the few things
+an Actions token isn't allowed to do, so the first runs fail at
+`configure-pages` with *Resource not accessible by integration*. Flip it on once
+by hand:
+
+**Settings → Pages → Source: GitHub Actions**, then re-run the workflow. After
+that it deploys on its own and you'll have a URL to open on your phone.
 
 Arrow keys, WASD, or HJKL on a keyboard. Swipe the board on a touchscreen —
 drag without lifting to chain turns. There's an on-screen pad behind the `✛`
