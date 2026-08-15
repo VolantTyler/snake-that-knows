@@ -4,10 +4,10 @@ A snake game where the snake doesn't know it's a snake, doesn't know it's in a
 game, and doesn't know you exist — yet.
 
 It works all three out by playing. You watch it happen in its own words, in a
-thought stream beside the board. Somewhere around the five-minute mark it stops
-speculating about the nature of its world and starts speculating about **yours**
-— what kind of phone or computer you're holding, what time it is where you are,
-whether you're still there.
+thought stream beside the board. Roughly five minutes in — if you're playing
+well; see [Pacing](#pacing) — it stops speculating about the nature of its world
+and starts speculating about **yours**: what kind of phone or computer you're
+holding, what time it is where you are, whether you're still there.
 
 The more it understands, the less reliable the game becomes.
 
@@ -114,6 +114,35 @@ every 120 ticks, because it should feel like a startling act of will and not a
 safety net.
 
 <img src="docs/mobile.png" alt="on a phone" width="320">
+
+## Pacing
+
+Because learning is driven by events rather than a clock, how fast the snake
+wakes up depends on how you play. These numbers come from driving the real game
+in headless Chromium at ~100x speed, with three bots that differ only in how
+often they take the best available move. Tick counts are exact; the minutes are
+computed by banking the interval the game *would* have used at that moment
+(`max(74, 132 - score×1.6)` ms), not by assuming a flat rate.
+
+| reaching… | reckless (55%) | average (85%) | careful (98%) |
+| --- | --- | --- | --- |
+| 1 · physics | 0.8 min | 0.3 min | 0.4 min |
+| 2 · agency | 2.2 min | 1.0 min | 1.2 min |
+| 3 · the game | 3.8 min | 2.4 min | 3.4 min |
+| **4 · your device** | **18.4 min** | **5.1 min** | **6.1 min** |
+| 5 · the outside | 44.4 min | 28.3 min | 26.5 min |
+
+The reckless bot is more than three times slower to the device reveal, and the
+reason is worth stating: it isn't punished for dying. It's punished for not
+eating. Progress is driven by events — and a player who wanders without scoring
+generates fewer of them, stays short, and never triggers the speed-up that
+packs more ticks into each minute. Aimless play produces a slower mind. That
+falls out of the evidence model rather than being designed in, but it is the
+behaviour I'd have chosen.
+
+Caveat: these are bots, not people. A human's reaction lag and risk appetite
+will shift the wall-clock numbers. The tick counts and the ordering are solid;
+treat the minutes as a good estimate rather than a promise.
 
 ## Layout
 
