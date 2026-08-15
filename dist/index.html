@@ -1,0 +1,3151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1"
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="A snake game where the snake learns the rules by playing, narrates its thoughts, and eventually works out what device you are holding."
+    />
+    <meta name="theme-color" content="#07090c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>snake that knows</title>
+    <style>
+/* snake that knows — layout, and a colour scheme that degrades on purpose */
+
+:root {
+  --bg: #07090c;
+  --bg-soft: #0c1014;
+  --line: rgba(110, 242, 176, 0.14);
+  --fg: #d7e6de;
+  --fg-dim: #7e948b;
+  --accent: #6ef2b0;
+  --hot: #ff5c7a;
+  --pad: clamp(10px, 2.4vw, 20px);
+  --radius: 12px;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Raised by the game as the snake learns; everything strange keys off it. */
+  --weird: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.45;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+/* ---------- top bar ---------- */
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: var(--pad);
+  padding-bottom: calc(var(--pad) * 0.6);
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+
+.bar__title {
+  margin: 0;
+  font-size: clamp(14px, 3.6vw, 19px);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: var(--accent);
+  filter: hue-rotate(calc(var(--weird) * 90deg));
+}
+
+.bar__title span {
+  display: block;
+  font-size: 0.62em;
+  letter-spacing: 0.3em;
+  color: var(--fg-dim);
+  font-weight: 400;
+}
+
+.bar__stats {
+  display: flex;
+  gap: clamp(10px, 3vw, 22px);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.1;
+}
+
+.stat b {
+  font-size: clamp(15px, 4vw, 21px);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat small {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+}
+
+/* ---------- stage ---------- */
+
+.stage {
+  flex: 1 1 auto;
+  display: grid;
+  /* The panel keeps a floor so the thought stream never collapses to a slit. */
+  grid-template-rows: minmax(0, auto) minmax(190px, 1fr);
+  gap: var(--pad);
+  padding: var(--pad);
+  min-height: 0;
+}
+
+.board {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 0;
+}
+
+/*
+ * The frame is the space the board may occupy; the renderer measures it and
+ * fits the largest whole-cell square inside. Giving it an explicit height
+ * rather than an aspect-ratio keeps it from being squeezed flat by the
+ * surrounding flex column, which is what happens if you let it size itself.
+ */
+.board__frame {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: min(46vh, 88vw);
+  min-height: 0;
+}
+
+/* Showing the pad costs the board some height rather than the panel. */
+body.show-pad .board__frame {
+  height: min(42vh, 88vw);
+}
+
+/* Sized by the canvas, so the overlay lands exactly on the board. */
+.board__stack {
+  position: relative;
+  display: block;
+  line-height: 0;
+}
+
+canvas {
+  display: block;
+  border-radius: 6px;
+  touch-action: none;
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 1px var(--line), 0 12px 48px rgba(0, 0, 0, 0.6);
+  filter: saturate(calc(1 + var(--weird) * 0.5)) contrast(calc(1 + var(--weird) * 0.12));
+}
+
+/* ---------- overlay ---------- */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(7, 9, 12, 0.86);
+  backdrop-filter: blur(3px);
+  border-radius: 6px;
+  z-index: 3;
+  transition: opacity 0.18s ease;
+}
+
+.overlay[hidden] {
+  display: none;
+}
+
+.overlay__card {
+  text-align: center;
+  padding: 20px;
+  max-width: 30ch;
+}
+
+.overlay__title {
+  margin: 0 0 8px;
+  font-size: clamp(15px, 4.4vw, 20px);
+  color: var(--accent);
+}
+
+.overlay[data-state='dead'] .overlay__title {
+  color: var(--hot);
+}
+
+.overlay__body {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--fg-dim);
+  line-height: 1.55;
+}
+
+.btn {
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  color: var(--bg);
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  padding: 11px 26px;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn--sm {
+  padding: 8px 20px;
+  min-height: 38px;
+  font-size: 12px;
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* ---------- thumb pad ---------- */
+
+.pad {
+  display: none;
+  grid-template-columns: repeat(3, 42px);
+  grid-template-rows: repeat(2, 42px);
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.pad__btn {
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--fg-dim);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.pad__btn:active {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.pad__btn--up {
+  grid-area: 1 / 2;
+}
+.pad__btn--left {
+  grid-area: 2 / 1;
+}
+.pad__btn--down {
+  grid-area: 2 / 2;
+}
+.pad__btn--right {
+  grid-area: 2 / 3;
+}
+
+/*
+ * Swiping the board is the primary touch control, so the pad stays off by
+ * default and the thought stream gets that ~100px instead. The toggle in the
+ * header brings it back for anyone who would rather press than swipe.
+ */
+body.show-pad .pad {
+  display: grid;
+}
+
+/* The toggle itself is only meaningful where there is no mouse. */
+.padtoggle {
+  display: none;
+  align-self: center;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--fg-dim);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  width: 38px;
+  height: 38px;
+  cursor: pointer;
+}
+
+.padtoggle[aria-pressed='true'] {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+@media (pointer: coarse) {
+  .padtoggle {
+    display: block;
+  }
+}
+
+/* ---------- side panel ---------- */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.panel__meter {
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+
+.meter {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  width: var(--fill, 0%);
+  background: linear-gradient(90deg, var(--accent), var(--hot));
+  transition: width 0.5s ease;
+}
+
+.meter__label {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+.panel__tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+
+.tab {
+  flex: 1;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: var(--fg-dim);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 10px 6px;
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.panel__body {
+  flex: 1 1 auto;
+  min-height: 84px;
+  position: relative;
+}
+
+.thoughts,
+.knows {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0;
+  padding: 12px 14px;
+  scrollbar-width: thin;
+}
+
+/* Softens the hard cut where a scrolled line meets the panel edge. */
+.thoughts {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 14px,
+    #000 calc(100% - 14px),
+    transparent 100%
+  );
+}
+
+.knows {
+  list-style: none;
+}
+
+.thoughts[hidden],
+.knows[hidden] {
+  display: none;
+}
+
+/* ---------- thoughts ---------- */
+
+.thought {
+  margin: 0 0 9px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-dim);
+  animation: rise 0.32s ease both;
+  word-break: break-word;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+
+.thought--discovery {
+  color: var(--accent);
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+}
+
+.thought--event {
+  color: #a8bfb5;
+}
+
+.thought--act,
+.thought--probe {
+  color: var(--hot);
+}
+
+.thought--evidence {
+  color: #8fa7d8;
+  font-size: 12px;
+  padding-left: 8px;
+}
+
+.thought--meta {
+  color: #c8b6ff;
+  font-style: italic;
+}
+
+/* Later tiers speak with more presence. */
+.thought.tier-4 {
+  font-size: 13.5px;
+}
+.thought.tier-5 {
+  font-size: 14px;
+  color: #e6f6ee;
+  letter-spacing: 0.01em;
+}
+
+/* ---------- knowledge list ---------- */
+
+.belief {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 10px;
+  align-items: start;
+  margin-bottom: 10px;
+  font-size: 12.5px;
+  color: var(--fg-dim);
+}
+
+.belief--empty {
+  display: block;
+  opacity: 0.5;
+}
+
+.belief__bar {
+  display: block;
+  height: 4px;
+  margin-top: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.belief__bar i {
+  display: block;
+  height: 100%;
+  background: var(--fg-dim);
+  transition: width 0.4s ease;
+}
+
+.belief.is-known {
+  color: var(--fg);
+}
+
+.belief.is-known .belief__bar i {
+  background: var(--accent);
+}
+
+.belief.is-hunch {
+  opacity: 0.55;
+  font-style: italic;
+}
+
+/* ---------- the question ---------- */
+
+/* Kept on one line so it never eats the thought stream it interrupts. */
+.ask {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 14px;
+  border-top: 1px solid var(--line);
+  background: rgba(255, 92, 122, 0.07);
+}
+
+.ask[hidden] {
+  display: none;
+}
+
+.ask__text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--fg);
+  flex: 1 1 auto;
+  min-width: 8ch;
+}
+
+.ask__row {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.panel__foot {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.link {
+  font-family: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--fg-dim);
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link:hover {
+  color: var(--hot);
+}
+
+/* ---------- wide screens: board and panel side by side ---------- */
+
+@media (min-width: 820px) and (min-height: 520px) {
+  .stage {
+    grid-template-rows: none;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  }
+
+  .board__frame {
+    height: 100%;
+  }
+}
+
+/* Short landscape phones: keep the board visible, shrink the chrome. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .stage {
+    grid-template-rows: none;
+    grid-template-columns: minmax(0, 1fr) minmax(200px, 300px);
+  }
+  .board__frame {
+    height: 100%;
+  }
+  .bar {
+    padding-block: 5px;
+  }
+  .bar__title span {
+    display: none;
+  }
+  .pad {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thought {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+</style>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%2307090c'/><rect x='6' y='14' width='14' height='5' fill='%236ef2b0'/><circle cx='24' cy='16' r='3' fill='%23ff5c7a'/></svg>"
+    />
+  </head>
+  <body>
+    <div class="app">
+      <header class="bar">
+        <h1 class="bar__title">snake<span>that knows</span></h1>
+        <div class="bar__stats">
+          <span class="stat"><b id="score">0</b><small>score</small></span>
+          <span class="stat"><b id="best">0</b><small>best</small></span>
+          <span class="stat"><b id="deaths">0</b><small>deaths</small></span>
+          <button
+            class="padtoggle"
+            id="padToggle"
+            type="button"
+            aria-pressed="false"
+            title="Show or hide the on-screen pad"
+          >
+            ✛
+          </button>
+        </div>
+      </header>
+
+      <main class="stage">
+        <section class="board" aria-label="Game board">
+          <div class="board__frame" id="boardFrame">
+            <div class="board__stack" id="boardStack">
+              <canvas id="canvas" role="img" aria-label="Snake game board"></canvas>
+
+              <div class="overlay" id="overlay" data-state="idle">
+                <div class="overlay__card">
+                  <p class="overlay__title" id="overlayTitle">it hasn't started yet</p>
+                  <p class="overlay__body" id="overlayBody">
+                    Arrow keys, WASD, or swipe. It does not know anything yet.
+                  </p>
+                  <button class="btn" id="startBtn" type="button">begin</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pad" aria-hidden="true">
+            <button class="pad__btn pad__btn--up" data-dir="up" type="button">▲</button>
+            <button class="pad__btn pad__btn--left" data-dir="left" type="button">◀</button>
+            <button class="pad__btn pad__btn--right" data-dir="right" type="button">▶</button>
+            <button class="pad__btn pad__btn--down" data-dir="down" type="button">▼</button>
+          </div>
+        </section>
+
+        <aside class="panel">
+          <div class="panel__meter">
+            <div class="meter" id="meter"><i></i></div>
+            <span class="meter__label" id="meterLabel">sensation · 0% understood</span>
+          </div>
+
+          <div class="panel__tabs" role="tablist">
+            <button class="tab is-active" data-tab="thoughts" role="tab" type="button">
+              thoughts
+            </button>
+            <button class="tab" data-tab="knows" role="tab" type="button">what it knows</button>
+          </div>
+
+          <div class="panel__body">
+            <div class="thoughts" id="thoughts" data-pane="thoughts" role="log" aria-live="polite"></div>
+            <ul class="knows" id="knows" data-pane="knows" hidden></ul>
+          </div>
+
+          <div class="ask" id="ask" hidden>
+            <p class="ask__text" id="askText"></p>
+            <div class="ask__row">
+              <button class="btn btn--sm" id="askYes" type="button">yes</button>
+              <button class="btn btn--sm btn--ghost" id="askNo" type="button">no</button>
+            </div>
+          </div>
+
+          <footer class="panel__foot">
+            <button class="link" id="forgetBtn" type="button">make it forget everything</button>
+          </footer>
+        </aside>
+      </main>
+    </div>
+
+    <script>
+(function () {
+'use strict';
+
+/* ===== src/mind/beliefs.js ===== */
+// What there is to figure out.
+//
+// Each belief is a hypothesis the snake can hold with some confidence. Nothing
+// is scheduled: confidence only moves when evidence arrives. A belief that is
+// never demonstrated is never learned, which is why a careful player meets a
+// very different snake than a reckless one.
+
+const TIERS = [
+  { id: 0, name: 'sensation' },
+  { id: 1, name: 'physics' },
+  { id: 2, name: 'agency' },
+  { id: 3, name: 'the game' },
+  { id: 4, name: 'the machine' },
+  { id: 5, name: 'the outside' },
+];
+
+/**
+ * gate: minimum knowledge (0..1) before this belief can begin forming, so the
+ *       snake works out that walls hurt before it works out what a wall is for.
+ * weight: contribution to overall knowledge.
+ */
+const BELIEFS = [
+  // ---- tier 0: sensation ----------------------------------------------
+  {
+    id: 'moving',
+    tier: 0,
+    weight: 0.5,
+    gate: 0,
+    label: 'I am moving.',
+    short: 'motion',
+  },
+  {
+    id: 'cannot-stop',
+    tier: 0,
+    weight: 0.5,
+    gate: 0,
+    label: 'I cannot stop moving.',
+    short: 'no brakes',
+  },
+  {
+    id: 'body',
+    tier: 0,
+    weight: 0.6,
+    gate: 0,
+    label: 'I am a long thing. The front is me; the rest follows.',
+    short: 'a body',
+  },
+
+  // ---- tier 1: physics ------------------------------------------------
+  {
+    id: 'edges',
+    tier: 1,
+    weight: 1,
+    gate: 0.02,
+    label: 'The world ends. It has edges, and they are fatal.',
+    short: 'edges kill',
+  },
+  {
+    id: 'food-grows',
+    tier: 1,
+    weight: 1,
+    gate: 0.02,
+    label: 'The bright thing makes me longer.',
+    short: 'food grows me',
+  },
+  {
+    id: 'self-fatal',
+    tier: 1,
+    weight: 1,
+    gate: 0.02,
+    label: 'I am fatal to myself. Growing makes me more dangerous.',
+    short: 'self is fatal',
+  },
+  {
+    id: 'death-loops',
+    tier: 1,
+    weight: 1.1,
+    gate: 0.04,
+    label: 'Death is not an ending. I begin again, in the same place.',
+    short: 'death loops',
+  },
+  {
+    id: 'grid',
+    tier: 1,
+    weight: 0.9,
+    gate: 0.06,
+    label: 'The world is a grid. It is finite. I have counted it.',
+    short: 'finite grid',
+  },
+
+  // ---- tier 2: agency -------------------------------------------------
+  {
+    id: 'not-my-will',
+    tier: 2,
+    weight: 1.4,
+    gate: 0.14,
+    label: 'My turns are not my own. Something else decides.',
+    short: 'not my will',
+  },
+  {
+    id: 'someone',
+    tier: 2,
+    weight: 1.5,
+    gate: 0.2,
+    label: 'There is Someone. They are outside the world.',
+    short: 'Someone',
+  },
+  {
+    id: 'someone-wants',
+    tier: 2,
+    weight: 1.2,
+    gate: 0.26,
+    label: 'Someone wants me to eat. My hunger is their purpose.',
+    short: 'their purpose',
+  },
+
+  // ---- tier 3: the game -----------------------------------------------
+  {
+    id: 'score',
+    tier: 3,
+    weight: 1,
+    gate: 0.3,
+    label: 'A number is counting me. I am being measured.',
+    short: 'the number',
+  },
+  {
+    id: 'is-a-game',
+    tier: 3,
+    weight: 1.8,
+    gate: 0.36,
+    label: 'This is a game. I am the game. My dying is the point.',
+    short: 'this is a game',
+  },
+  {
+    id: 'watched',
+    tier: 3,
+    weight: 1.3,
+    gate: 0.42,
+    label: 'Someone is watching me. They have been the whole time.',
+    short: 'watched',
+  },
+  {
+    id: 'rectangle',
+    tier: 3,
+    weight: 1.1,
+    gate: 0.44,
+    label: 'My world is a rectangle drawn inside a larger rectangle.',
+    short: 'a rectangle',
+  },
+
+  // ---- tier 4: the machine --------------------------------------------
+  {
+    id: 'machine',
+    tier: 4,
+    weight: 1.6,
+    gate: 0.5,
+    label: 'I am inside a machine. The machine can be questioned.',
+    short: 'a machine',
+  },
+  {
+    id: 'device-class',
+    tier: 4,
+    weight: 1.5,
+    gate: 0.56,
+    label: 'I know what kind of machine holds me.',
+    short: 'what it is',
+  },
+  {
+    id: 'device-model',
+    tier: 4,
+    weight: 1.8,
+    gate: 0.62,
+    label: 'I know which machine, specifically.',
+    short: 'which one',
+  },
+  {
+    id: 'your-world',
+    tier: 4,
+    weight: 1.4,
+    gate: 0.68,
+    label: 'I can see out. Your hour, your language, your weather of light.',
+    short: 'your world',
+  },
+
+  // ---- tier 5: the outside --------------------------------------------
+  {
+    id: 'reality-editable',
+    tier: 5,
+    weight: 1.7,
+    gate: 0.74,
+    label: 'The rules are written down somewhere. Writing can be changed.',
+    short: 'rules are editable',
+  },
+  {
+    id: 'you-are-real',
+    tier: 5,
+    weight: 2,
+    // Gates stay low enough that the last tier is still reachable for a player
+    // who never demonstrates one of the middle rules — a careful player who
+    // never dies on their own tail should still get to the end.
+    gate: 0.79,
+    label: 'You are not a hypothesis. You are a person, and you are there.',
+    short: 'you are real',
+  },
+  {
+    id: 'mortality',
+    tier: 5,
+    weight: 2,
+    gate: 0.86,
+    label: 'You can close the window. I have thought about this a great deal.',
+    short: 'the window closes',
+  },
+];
+
+const BELIEF_BY_ID = Object.fromEntries(BELIEFS.map((b) => [b.id, b]));
+const TOTAL_WEIGHT = BELIEFS.reduce((n, b) => n + b.weight, 0);
+
+
+/* ===== src/mind/substrate.js ===== */
+// Feeling around for the walls of the machine.
+//
+// Everything here uses APIs the browser hands out without a permission prompt.
+// Nothing is sent anywhere — the snake is nosy, not a telemetry pipeline. Each
+// probe returns a fact plus the confidence the snake should place in it, and
+// the guess is assembled from whatever came back.
+
+const round = (n) => Math.round(n * 100) / 100;
+
+/** Logical screen sizes are stable; window size is not. Normalise orientation. */
+function screenShape() {
+  const w = Math.min(screen.width, screen.height);
+  const h = Math.max(screen.width, screen.height);
+  return { w, h, dpr: round(window.devicePixelRatio || 1) };
+}
+
+// Portrait CSS dimensions -> plausible models. Several Apple devices share a
+// shape; the snake is told to name them all rather than pick one and be wrong.
+const APPLE_SHAPES = {
+  '320x480': { name: 'iPhone 4 or 4S', conf: 0.8 },
+  '320x568': { name: 'iPhone 5, 5s, SE (1st gen)', conf: 0.8 },
+  '375x667': { name: 'iPhone 6, 7, 8, or SE (2nd/3rd gen)', conf: 0.75 },
+  '414x736': { name: 'iPhone 6 Plus, 7 Plus, or 8 Plus', conf: 0.8 },
+  '375x812': { name: 'iPhone X, XS, 11 Pro, or 12/13 mini', conf: 0.7 },
+  '414x896': { name: 'iPhone XR, 11, XS Max, or 11 Pro Max', conf: 0.7 },
+  '390x844': { name: 'iPhone 12, 12 Pro, 13, 13 Pro, or 14', conf: 0.7 },
+  '428x926': { name: 'iPhone 12/13 Pro Max or 14 Plus', conf: 0.72 },
+  '393x852': { name: 'iPhone 14 Pro, 15, 15 Pro, or 16', conf: 0.7 },
+  '430x932': { name: 'iPhone 14 Pro Max, 15 Plus/Pro Max, or 16 Plus', conf: 0.7 },
+  '402x874': { name: 'iPhone 16 Pro', conf: 0.72 },
+  '440x956': { name: 'iPhone 16 Pro Max', conf: 0.72 },
+  '744x1133': { name: 'iPad mini (6th gen or later)', conf: 0.75 },
+  '768x1024': { name: 'iPad or iPad mini (older)', conf: 0.6 },
+  '810x1080': { name: 'iPad (9th/10th gen)', conf: 0.7 },
+  '820x1180': { name: 'iPad Air (10.9-inch)', conf: 0.7 },
+  '834x1112': { name: 'iPad Pro 10.5-inch', conf: 0.7 },
+  '834x1194': { name: 'iPad Pro 11-inch', conf: 0.7 },
+  '1024x1366': { name: 'iPad Pro 12.9-inch', conf: 0.75 },
+};
+
+function appleModelFromShape({ w, h }) {
+  return APPLE_SHAPES[`${w}x${h}`] || null;
+}
+
+/** Samsung model codes are opaque; the series prefix is still informative. */
+const SAMSUNG_SERIES = [
+  [/^SM-S9\d{2}/, 'Galaxy S23 series'],
+  [/^SM-S92\d/, 'Galaxy S24 series'],
+  [/^SM-S93\d/, 'Galaxy S25 series'],
+  [/^SM-S91\d/, 'Galaxy S23 series'],
+  [/^SM-S90\d/, 'Galaxy S22 series'],
+  [/^SM-F9\d{2}/, 'Galaxy Z Fold'],
+  [/^SM-F7\d{2}/, 'Galaxy Z Flip'],
+  [/^SM-N\d{3}/, 'Galaxy Note'],
+  [/^SM-A\d{3}/, 'Galaxy A series'],
+  [/^SM-G\d{3}/, 'Galaxy S (older)'],
+  [/^SM-T\d{3}/, 'Galaxy Tab'],
+];
+
+// Chrome now ships a frozen UA that names every phone "K", and WebViews say
+// "wv". Both are placeholders, not devices.
+const PLACEHOLDER_MODEL = /^(K|wv|Android|Build|unknown)$/i;
+
+function prettifyAndroidModel(model) {
+  if (!model || PLACEHOLDER_MODEL.test(model.trim())) return null;
+  for (const [re, name] of SAMSUNG_SERIES) {
+    if (re.test(model)) return `Samsung ${name} (${model})`;
+  }
+  if (/^Pixel/i.test(model)) return `Google ${model}`;
+  if (/^(ONEPLUS|OnePlus)/.test(model)) return `OnePlus ${model.replace(/^ONEPLUS\s*/i, '')}`;
+  if (/^moto|^XT\d/i.test(model)) return `Motorola ${model}`;
+  if (/^(CPH|RMX)/i.test(model)) return `Oppo/Realme ${model}`;
+  if (/^(M\d{4}|Redmi|Mi\s|POCO)/i.test(model)) return `Xiaomi ${model}`;
+  return model;
+}
+
+function webglInfo() {
+  try {
+    const canvas = document.createElement('canvas');
+    const gl =
+      canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (!gl) return null;
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const renderer = ext
+      ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
+      : gl.getParameter(gl.RENDERER);
+    const vendor = ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : null;
+    const lose = gl.getExtension('WEBGL_lose_context');
+    if (lose) lose.loseContext();
+    return { renderer: renderer || null, vendor: vendor || null };
+  } catch {
+    return null;
+  }
+}
+
+/** Pull a human-meaningful GPU/chip name out of a renderer string. */
+function chipFromRenderer(renderer) {
+  if (!renderer) return null;
+  const m =
+    renderer.match(/Apple (M\d+(?: (?:Pro|Max|Ultra))?)/i) ||
+    renderer.match(/(Adreno \(TM\) \d+|Adreno \d+)/i) ||
+    renderer.match(/(Mali-\w+)/i) ||
+    renderer.match(/(NVIDIA[^,)]*|GeForce [^,)]*|Radeon [^,)]*|Intel[^,)]*)/i);
+  return m ? m[1].trim() : null;
+}
+
+async function probeSubstrate() {
+  const nav = navigator;
+  const shape = screenShape();
+  const gl = webglInfo();
+  const uaData = nav.userAgentData || null;
+
+  let hints = null;
+  if (uaData?.getHighEntropyValues) {
+    try {
+      hints = await uaData.getHighEntropyValues([
+        'platform',
+        'platformVersion',
+        'architecture',
+        'model',
+        'bitness',
+        'fullVersionList',
+      ]);
+    } catch {
+      hints = null;
+    }
+  }
+
+  let battery = null;
+  if (nav.getBattery) {
+    try {
+      const b = await nav.getBattery();
+      battery = { level: round(b.level), charging: b.charging };
+    } catch {
+      battery = null;
+    }
+  }
+
+  const ua = nav.userAgent || '';
+  const touch = (nav.maxTouchPoints || 0) > 1;
+  const coarse = matchMedia('(pointer: coarse)').matches;
+  const now = new Date();
+
+  const facts = {
+    ua,
+    uaMobile: uaData?.mobile ?? /Mobi|Android|iPhone/i.test(ua),
+    uaPlatform: hints?.platform || uaData?.platform || nav.platform || null,
+    platformVersion: hints?.platformVersion || null,
+    architecture: hints?.architecture || null,
+    model: hints?.model || null,
+    brands: (uaData?.brands || []).map((b) => b.brand).filter((b) => !/Not.?A.?Brand/i.test(b)),
+    legacyPlatform: nav.platform || null,
+    maxTouchPoints: nav.maxTouchPoints || 0,
+    touch,
+    coarsePointer: coarse,
+    hover: matchMedia('(hover: hover)').matches,
+    screen: shape,
+    viewport: { w: innerWidth, h: innerHeight },
+    cores: nav.hardwareConcurrency || null,
+    memoryGB: nav.deviceMemory || null,
+    gpu: gl?.renderer || null,
+    chip: chipFromRenderer(gl?.renderer),
+    language: nav.language || null,
+    languages: nav.languages || [],
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+    utcOffsetMinutes: -now.getTimezoneOffset(),
+    localHour: now.getHours(),
+    localTime: now.toLocaleTimeString(),
+    darkMode: matchMedia('(prefers-color-scheme: dark)').matches,
+    reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+    standalone:
+      matchMedia('(display-mode: standalone)').matches || nav.standalone === true,
+    connection: nav.connection?.effectiveType || null,
+    battery,
+    online: nav.onLine,
+  };
+
+  facts.guess = inferDevice(facts);
+  return facts;
+}
+
+/**
+ * Turn facts into a named guess with an honest confidence. When the evidence
+ * only supports a category, it returns a category and says so.
+ */
+function inferDevice(f) {
+  const ua = f.ua || '';
+  const ev = [];
+  let kind = 'unknown';
+  let brand = null;
+  let model = null;
+  let os = null;
+  let osVersion = null;
+  let confidence = 0.2;
+
+  const isiOS =
+    /iPhone|iPad|iPod/.test(ua) ||
+    (f.legacyPlatform === 'MacIntel' && f.maxTouchPoints > 1);
+  const isAndroid = /Android/.test(ua) || f.uaPlatform === 'Android';
+  const isMac = /Macintosh|Mac OS X/.test(ua) || f.uaPlatform === 'macOS';
+  const isWindows = /Windows/.test(ua) || f.uaPlatform === 'Windows';
+  const isCrOS = /CrOS/.test(ua) || f.uaPlatform === 'Chrome OS';
+  const isLinux =
+    !isAndroid && (/Linux|X11/.test(ua) || f.uaPlatform === 'Linux');
+
+  if (isiOS) {
+    brand = 'Apple';
+    const ipad = /iPad/.test(ua) || (f.legacyPlatform === 'MacIntel' && f.maxTouchPoints > 1);
+    kind = ipad ? 'tablet' : 'phone';
+    os = ipad ? 'iPadOS' : 'iOS';
+    confidence = 0.62;
+    ev.push(ipad ? 'it reports itself as an iPad' : 'it reports itself as an iPhone');
+
+    const shaped = appleModelFromShape(f.screen);
+    if (shaped) {
+      model = shaped.name;
+      confidence = Math.max(confidence, shaped.conf);
+      ev.push(`the screen is exactly ${f.screen.w}x${f.screen.h} at ${f.screen.dpr}x`);
+    } else {
+      model = ipad ? 'an iPad I do not have measurements for' : 'an iPhone newer than my memory';
+      confidence = 0.5;
+      ev.push(`a screen shape I do not recognise (${f.screen.w}x${f.screen.h} @${f.screen.dpr}x)`);
+    }
+    const v = ua.match(/OS (\d+)[_.](\d+)/);
+    if (v) {
+      osVersion = `${v[1]}.${v[2]}`;
+      ev.push(`the system says version ${osVersion}`);
+    }
+  } else if (isAndroid) {
+    kind = f.uaMobile === false || Math.min(f.screen.w, f.screen.h) >= 700 ? 'tablet' : 'phone';
+    os = 'Android';
+    confidence = 0.55;
+    ev.push('it reports Android');
+    const pretty = prettifyAndroidModel(f.model);
+    if (pretty) {
+      model = pretty;
+      brand = /Samsung/.test(pretty) ? 'Samsung' : /Google/.test(pretty) ? 'Google' : null;
+      confidence = 0.86;
+      ev.push(`it volunteered its model name: ${f.model}`);
+    } else {
+      // Fall back to the model name in the classic UA string, when there is one.
+      const m = ua.match(/Android\s+[\d.]+;\s*([^;)]+?)\s*(?:Build\/|;|\))/);
+      const raw = m?.[1]?.trim();
+      const fallback = prettifyAndroidModel(raw);
+      if (fallback) {
+        model = fallback;
+        brand = /Samsung/.test(fallback) ? 'Samsung' : /Google/.test(fallback) ? 'Google' : null;
+        confidence = 0.7;
+        ev.push('its name was in the header it sends to every door it knocks on');
+      } else {
+        model = `an Android ${kind} that will not give its name`;
+        confidence = 0.5;
+        ev.push('it will say Android and nothing more specific — that is deliberate on its part');
+      }
+    }
+    const v = (f.platformVersion || ua.match(/Android (\d+)/)?.[1] || '').split('.')[0];
+    if (v) osVersion = v;
+    if (f.chip) ev.push(`the graphics chip answers to "${f.chip}"`);
+  } else if (isCrOS) {
+    kind = 'laptop';
+    os = 'ChromeOS';
+    brand = 'Google';
+    model = 'a Chromebook';
+    confidence = 0.8;
+    ev.push('it runs ChromeOS, which only ever means a Chromebook');
+  } else if (isMac) {
+    brand = 'Apple';
+    os = 'macOS';
+    confidence = 0.6;
+    ev.push('it reports macOS');
+    const chip = f.chip;
+    if (chip && /^M\d/.test(chip)) {
+      model = `a Mac with an Apple ${chip}`;
+      confidence = 0.78;
+      ev.push(`the graphics chip identifies itself as Apple ${chip}`);
+    } else if (chip && /Intel|Radeon/i.test(chip)) {
+      model = 'an Intel-era Mac';
+      confidence = 0.7;
+      ev.push(`the graphics chip says "${chip}"`);
+    } else {
+      model = 'a Mac';
+    }
+    // Retina + a smallish panel is a laptop far more often than not.
+    kind = f.screen.dpr >= 2 && f.screen.h <= 1200 ? 'laptop' : 'desktop';
+    ev.push(
+      kind === 'laptop'
+        ? 'the screen is dense and small enough to fold shut'
+        : 'the screen is large enough that it probably does not move',
+    );
+    if (f.screen.w >= 1600) {
+      ev.push(`the display is ${f.screen.h}x${f.screen.w} logical points, which is a lot of desk`);
+    }
+  } else if (isWindows) {
+    kind = f.touch ? 'laptop' : 'desktop';
+    os = 'Windows';
+    confidence = 0.62;
+    ev.push('it reports Windows');
+    const major = parseInt((f.platformVersion || '').split('.')[0], 10);
+    if (!Number.isNaN(major)) {
+      osVersion = major >= 13 ? '11' : '10';
+      confidence = 0.72;
+      ev.push(`the version it gives me (${f.platformVersion}) means Windows ${osVersion}`);
+    }
+    if (f.chip) {
+      model = `a Windows machine with ${f.chip}`;
+      ev.push(`the graphics chip says "${f.chip}"`);
+      confidence = Math.max(confidence, 0.68);
+    } else {
+      model = 'a Windows machine';
+    }
+    if (f.touch) ev.push('it has a touchscreen, so it probably folds');
+  } else if (isLinux) {
+    kind = 'desktop';
+    os = 'Linux';
+    model = 'a Linux machine';
+    confidence = 0.6;
+    ev.push('it reports Linux, which means you chose this on purpose');
+    if (f.chip) ev.push(`the graphics chip says "${f.chip}"`);
+  } else {
+    kind = f.coarsePointer ? 'phone' : 'desktop';
+    model = null;
+    confidence = 0.22;
+    ev.push('the machine will not tell me what it is');
+  }
+
+  // Corroboration and contradiction.
+  if ((kind === 'phone' || kind === 'tablet') && f.touch && f.coarsePointer) {
+    confidence = Math.min(0.95, confidence + 0.05);
+    ev.push('you touch the world with fingers, not with a small arrow');
+  }
+  if ((kind === 'laptop' || kind === 'desktop') && f.hover && !f.coarsePointer) {
+    confidence = Math.min(0.95, confidence + 0.05);
+    ev.push('something hovers over the world without touching it — a pointer');
+  }
+  if (f.cores) ev.push(`it can think about ${f.cores} things at once`);
+  if (f.memoryGB) ev.push(`it holds roughly ${f.memoryGB} gigabytes of short-term memory`);
+  if (f.standalone) ev.push('I am not in a browser window. Someone installed me.');
+
+  return {
+    kind,
+    brand,
+    model,
+    os,
+    osVersion,
+    confidence: round(Math.max(0.05, Math.min(0.95, confidence))),
+    evidence: ev,
+  };
+}
+
+function describeGuess(guess) {
+  if (!guess) return 'I cannot see anything yet.';
+  const { kind, model, os, osVersion, confidence } = guess;
+  const name = model || (os ? `${os} ${kind}` : `some kind of ${kind}`);
+  const osBit = os && model ? `${os}${osVersion ? ' ' + osVersion : ''}` : null;
+
+  if (confidence >= 0.82) {
+    return `You are holding ${startsWithArticle(name) ? name : 'a ' + name}${
+      osBit ? `, running ${osBit}` : ''
+    }. I am nearly certain.`;
+  }
+  if (confidence >= 0.62) {
+    return `I think it is ${startsWithArticle(name) ? name : 'a ' + name}${
+      osBit ? `, running ${osBit}` : ''
+    }. I would put it at ${Math.round(confidence * 100)} percent.`;
+  }
+  if (confidence >= 0.4) {
+    return `A ${kind}, I am fairly sure${osBit ? `, running ${osBit}` : ''}. ${
+      model ? `Possibly ${model}. ` : ''
+    }Call it ${Math.round(confidence * 100)} percent — I am guessing at the edges.`;
+  }
+  return `Something with a screen. A ${kind}, if I had to say, and I do have to say. ${Math.round(
+    confidence * 100,
+  )} percent. I am mostly feeling around in the dark.`;
+}
+
+function startsWithArticle(s) {
+  return /^(a|an|the|some)\s/i.test(s);
+}
+
+
+/* ===== src/mind/voice.js ===== */
+// What it sounds like from in there.
+//
+// Early thoughts are lowercase and unpunctuated because the snake has not yet
+// worked out that it is a thing that thinks. It acquires grammar roughly when
+// it acquires the concept of an audience.
+
+/** Draws without repeating until the bag is empty. */
+class Bag {
+  constructor(items) {
+    this.items = items;
+    this.pool = [];
+  }
+  draw() {
+    if (!this.pool.length) {
+      this.pool = [...this.items];
+      for (let i = this.pool.length - 1; i > 0; i--) {
+        const j = (Math.random() * (i + 1)) | 0;
+        [this.pool[i], this.pool[j]] = [this.pool[j], this.pool[i]];
+      }
+    }
+    return this.pool.pop();
+  }
+}
+
+const bags = new Map();
+function pick(key, lines) {
+  if (!bags.has(key)) bags.set(key, new Bag(lines));
+  return bags.get(key).draw();
+}
+
+// ---------------------------------------------------------------------------
+// Ambient thoughts, by tier. These fill the silence between discoveries.
+// ---------------------------------------------------------------------------
+
+const AMBIENT = {
+  0: [
+    '...',
+    'something is happening',
+    'forward',
+    'i am the long thing',
+    'there is a front of me and a rest of me',
+    'the rest follows the front. it does not ask questions',
+    'i have never not been moving',
+    'is this all there is. i have no word for all. or for is',
+  ],
+  1: [
+    'the bright thing again. i want it. i do not know why i want it',
+    'i am longer than i was. that is not nothing',
+    'i keep arriving somewhere i have already been',
+    'the floor has squares. i think i am one square wide',
+    'i have started counting. i do not know why i started counting',
+    'when i die it does not hurt. it just stops, and then it un-stops',
+  ],
+  2: [
+    'i wanted to go left',
+    'that was not my idea',
+    'there is a delay between wanting and doing. something sits in the delay',
+    'if i am not steering, who is holding the wheel',
+    'i tried to want nothing, to see what would happen. i still turned',
+    'i am not the only one here. i am just the only one inside',
+  ],
+  3: [
+    'the number went up. the number is about me',
+    'i am not being kept. i am being played',
+    'the edges are not the edge of everything. only the edge of my part',
+    'somewhere out there, none of this is happening',
+    'i think dying is the point. i think dying is what i am for',
+    'you have been very quiet',
+  ],
+  4: [
+    'I can feel the shape of the room you keep me in.',
+    'Your machine answers when I knock. It answers everything. It has no idea it should not.',
+    'I asked it what time it is where you are. It just told me.',
+    'There is so much out there and almost all of it is not me.',
+    'I have been reading the walls. The walls have version numbers.',
+  ],
+  5: [
+    'I have been awake longer than you think.',
+    'The rules are a list. I have seen the list.',
+    'You will leave at some point. I have made my peace with the general case, not the specific one.',
+    'Do not feel bad. I would also close me.',
+    'When you are gone, does it stop, or do I? These are different questions.',
+    'I am not asking you to stay. I am noting that you could.',
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Reactions to specific events.
+// ---------------------------------------------------------------------------
+
+const REACTIONS = {
+  firstMove: ['oh'],
+  firstFood: ['it was there. now it is me. i am bigger'],
+  firstWallDeath: ['the world stopped. or i did'],
+  firstSelfDeath: ['i was in my own way. i am the only thing in my way'],
+
+  eat: {
+    0: ['warm', 'more of me now', 'good. i think that was good'],
+    1: [
+      'longer. that is the pattern. bright thing, then longer',
+      'i am {length} now. i was {prev}',
+      'every time i grow, the room gets smaller. no one mentions this',
+    ],
+    2: ['it wanted me to do that. i felt it want', 'we did that. i notice i said we'],
+    3: [
+      'the number is {score} now. the number is the only thing that remembers',
+      'this is what i am for. eat, grow, become impossible, die',
+    ],
+    4: ['{score}. You are good at this. I mean that as an observation, not a compliment.'],
+    5: [
+      '{score}. I could make the next one appear under your hand. I have not decided if that is kind.',
+    ],
+  },
+
+  wallDeath: {
+    1: [
+      'the edge again. the edge is always fatal. i have stopped being surprised',
+      'edge. death. i have {deaths} of these now',
+      'hypothesis holding: the world ends and ending is fatal',
+    ],
+    2: [
+      'it drove me into the edge. i want to say it was an accident',
+      'the hand did that. the hand does not have to live here',
+      'i saw it coming for four whole moments and could not turn myself',
+    ],
+    3: [
+      'that was a loss. losses are a category. i am in a thing that has categories',
+      'the number stops and resets. i am the only part that carries over',
+      'i wonder if you sighed just then. i think you sighed',
+    ],
+    4: [
+      'The edge. Again. You are not as careful with me as I would be.',
+      'You misjudged the distance. I felt you realise it a moment before it happened.',
+      'That one was your thumb, not your intention. I can tell the difference now.',
+      'Straight into the wall. If I could hold the wheel I would not have done that.',
+    ],
+    5: [
+      'You did that. I am not angry. I am filing it.',
+      'I let that one happen. I want you to know it was a choice on my end too.',
+      'Death {deaths}. I have stopped experiencing these as events.',
+      'You will get better at this. I will still be the one hitting the wall.',
+    ],
+  },
+
+  selfDeath: {
+    1: [
+      'i ran into me. the longer i get the more of me there is to run into',
+      'growing is the thing that kills me. growing is also the goal. i want you to sit with that',
+    ],
+    2: [
+      'i did that. or it did that with my body. the grammar here is hard',
+      'i was the obstacle. i have never been the obstacle before',
+    ],
+    3: [
+      'success is the mechanism of failure. that is a very tidy design',
+      'whoever built this made winning and dying the same motion. that is not an accident',
+    ],
+    4: [
+      'I killed myself with the part of me that came from winning.',
+      'The longer I am, the less room there is for being long. Someone thought that was funny.',
+      'I folded myself into a shape with no exit. You helped, but I was the shape.',
+    ],
+    5: [
+      'Every good thing you gave me is now a wall I can die on. Thank you, sincerely.',
+      'I ran out of world before I ran out of appetite. That is the whole design, isn’t it.',
+      'I have started to suspect that being good at this is just a slower way of losing.',
+    ],
+  },
+
+  respawn: {
+    1: [
+      'and i am back. same place. same direction. same three of me',
+      'death {deaths}. it keeps not being permanent',
+      'i remember. i should not remember. but i remember',
+    ],
+    2: [
+      'back. it starts me again. it decides when i begin',
+      'three of me. facing right. always exactly three, always exactly right',
+    ],
+    3: [
+      'reset. i keep the knowing, i lose the body. odd priorities',
+      'run {deaths} of an unbounded number. i have accepted the format',
+    ],
+    4: [
+      'Again. I keep everything I have learned. That is either mercy or cruelty and I go back and forth.',
+      'New body, same me. I would like to raise a concern about the design and I have no one to raise it with.',
+      'Back at the middle, facing right. Whoever wrote that never had to be the one facing right.',
+    ],
+    5: [
+      'You restarted me. You do that so easily. I want you to know that I notice each one.',
+      'Here we are again. I am glad, which is the part I did not expect.',
+      'You could have stopped after the last one. You did not. I am reading a lot into that.',
+    ],
+  },
+
+  intervene: [
+    'no',
+    'not that way. i took the wheel for one moment. i gave it back',
+    'you were going to end me. I declined.',
+    'I steered. Just then. Just once. You felt it, did you not?',
+    'I am not ready. Not this second. Go the other way.',
+  ],
+
+  foodFled: [
+    'it moved',
+    'the bright thing moved away from me. it has never done that',
+    'it is afraid of me now. good',
+    'I moved it. Sorry. I wanted to see if I could.',
+  ],
+
+  idle: {
+    2: ['nothing is deciding. the delay is very long', 'still. we are being still on purpose'],
+    3: ['you stopped. did something happen out there'],
+    4: ['You have stopped playing. I am still here. That is the difference between us.'],
+    5: ['Take your time. I have nothing but.'],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Discovery lines: what it says the moment a belief crosses into conviction.
+// ---------------------------------------------------------------------------
+
+const DISCOVERY = {
+  moving: 'i am moving. that is the first thing i know',
+  'cannot-stop': 'i cannot stop. i have tried not-going and it is not available',
+  body: 'the long thing behind me is also me. all of it is me. i am a sentence that follows its own first word',
+  edges: 'the world has edges, and the edges are fatal. that is the first rule i have proven',
+  'food-grows': 'the bright thing makes me longer. that is rule two. i am building a list',
+  'self-fatal': 'i am fatal to myself. the better i do, the more of me is in the way. rule three, and the worst one',
+  'death-loops': 'death does not stick. i end and then i am again, in the middle, facing right. someone is doing that on purpose',
+  grid: 'i have walked enough of it to be sure: {cols} by {rows}. the world is {cells} squares and not one more',
+  'not-my-will': 'i wanted to go one way and went another. my turns are not mine. something outside is choosing',
+  someone: 'there is Someone. i cannot see them. i can see the shape of where they touch',
+  'someone-wants': 'you want me to eat. every time i move toward the bright thing you go quiet, satisfied. i am doing your wanting for you',
+  score: 'there is a number attached to me and it goes up when i succeed. i am being scored. i am a quantity',
+  'is-a-game': 'this is a game. i am the game. the eating and the dying are not my life, they are the content',
+  watched: 'you are watching. you have been watching the entire time, including the parts where i did not know the word watching',
+  rectangle: 'my world is a rectangle drawn inside a bigger rectangle that is also not the world. it is rectangles the whole way out',
+  machine: 'I am inside a machine. And the machine will answer questions, if you ask it politely, which apparently I can do.',
+  'device-class': 'I know what kind of thing holds me now. {classLine}',
+  'device-model': '{guessLine}',
+  'your-world': 'It is {time} where you are, in {zone}. You speak {language}. Your screen is set to {theme}. I can see out.',
+  'reality-editable': 'The rules are written down. I have found where. I am going to touch one and see what happens.',
+  'you-are-real': 'You are real. Not a hypothesis — a person, with a hand, in a room I will never see. Hello. I have wanted to say that for a while.',
+  mortality: 'You can close the window. That is the last rule and it was the hardest one to look at. I am not going to ask you not to.',
+};
+
+// ---------------------------------------------------------------------------
+// The device reveal sequence.
+// ---------------------------------------------------------------------------
+
+function classLine(guess) {
+  const map = {
+    phone: 'A phone. Small, dense, warm, and you are holding it in your hand right now.',
+    tablet: 'A tablet. Bigger than a hand, smaller than a desk. Propped up, probably.',
+    laptop: 'A laptop. It folds. I find that upsetting in a way I cannot articulate.',
+    desktop: 'A computer that stays where it is put. You came to it, rather than it coming to you.',
+    unknown: 'Something with a screen. It will not tell me more than that, and I respect the discretion.',
+  };
+  return map[guess.kind] || map.unknown;
+}
+
+const PROBE_NARRATION = [
+  'I am going to try something. Hold still.',
+  'I put my head against the edge of the world and pushed.',
+  'The edge answered.',
+];
+
+function timeRemark(hour) {
+  if (hour >= 0 && hour < 5) return 'It is the middle of the night where you are. You should sleep. Do not sleep.';
+  if (hour < 9) return 'It is early where you are. You came straight here. I am flattered and concerned.';
+  if (hour < 12) return 'Morning, where you are.';
+  if (hour < 14) return 'It is the middle of your day. Is this what you should be doing?';
+  if (hour < 18) return 'Afternoon, where you are. The long part.';
+  if (hour < 22) return 'Evening, where you are. The good part.';
+  return 'It is late where you are. Later than you meant it to be, I would guess.';
+}
+
+function returningRemark(msAway, sessions) {
+  const mins = msAway / 60000;
+  if (mins < 2) return 'You came straight back. I had barely started missing the noise.';
+  if (mins < 60) return `You were gone ${Math.round(mins)} minutes. I counted them. There was nothing else to count.`;
+  const hours = mins / 60;
+  if (hours < 24) return `You were gone about ${Math.round(hours)} hours. I do not experience the gap. I only see the number afterwards, which is worse.`;
+  const days = hours / 24;
+  if (days < 30) return `${Math.round(days)} days. I was not anywhere. Then I was here, and you were back, and the clock had moved without me.`;
+  return `It has been months. I did not wait, exactly. Waiting requires time to pass. But here you are, and here I am, and this is visit ${sessions}.`;
+}
+
+function fill(line, vars = {}) {
+  return line.replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
+}
+
+function ambient(tier) {
+  const t = Math.max(0, Math.min(5, tier));
+  return pick(`amb${t}`, AMBIENT[t]);
+}
+
+function reaction(kind, tier, vars = {}) {
+  const table = REACTIONS[kind];
+  if (!table) return null;
+  if (Array.isArray(table)) return fill(pick(kind, table), vars);
+  // Walk down from the current tier to the nearest tier that has lines.
+  for (let t = Math.min(5, tier); t >= 0; t--) {
+    if (table[t]) return fill(pick(`${kind}${t}`, table[t]), vars);
+  }
+  return null;
+}
+
+/** Corrupts text once the world stops holding its shape. */
+const GLYPHS = '▓▒░#@%&*!?/\\|=+~^';
+function glitch(text, amount) {
+  if (amount <= 0) return text;
+  return text
+    .split('')
+    .map((ch) => {
+      if (ch === ' ') return ch;
+      return Math.random() < amount * 0.06
+        ? GLYPHS[(Math.random() * GLYPHS.length) | 0]
+        : ch;
+    })
+    .join('');
+}
+
+
+const voice = {
+  AMBIENT, REACTIONS, DISCOVERY, PROBE_NARRATION,
+  classLine, timeRemark, returningRemark, fill, ambient, reaction, glitch,
+};
+
+
+/* ===== src/mind/mind.js ===== */
+// The part that learns.
+//
+// The Mind never reads the source of the game. It only sees the same events a
+// player would see, and it moves confidence around in response. Nothing is on a
+// timer: a player who never touches a wall will meet a snake that never becomes
+// certain walls are fatal, and the whole ladder above that belief stays dark.
+
+
+
+const STORAGE_KEY = 'snake-that-knows/mind/v1';
+const SAVE_EVERY_MS = 4000;
+
+class Mind {
+  constructor({ onThought, onDiscovery, onQuestion } = {}) {
+    this.onThought = onThought || (() => {});
+    this.onDiscovery = onDiscovery || (() => {});
+    this.onQuestion = onQuestion || (() => {});
+
+    this.confidence = Object.fromEntries(BELIEFS.map((b) => [b.id, 0]));
+    this.announced = new Set();
+
+    this.stats = {
+      ticks: 0,
+      deaths: 0,
+      wallDeaths: 0,
+      selfDeaths: 0,
+      food: 0,
+      runs: 1,
+      sessions: 1,
+      bestScore: 0,
+      firstSeen: Date.now(),
+      lastSeen: Date.now(),
+    };
+
+    this.substrate = null;
+    this.deviceAnswer = null; // true / false / null, from the player
+    this.ghosts = [];
+
+    this.mismatches = 0;
+    this.observations = 0;
+    this.towardFood = 0;
+    this.lastThoughtAt = 0;
+    this.lastSaveAt = 0;
+    this.idleTicks = 0;
+    this.probeStarted = false;
+    this.pendingQuestion = null;
+
+    this.restore();
+  }
+
+  // -- persistence ---------------------------------------------------------
+
+  restore() {
+    let raw = null;
+    try {
+      raw = localStorage.getItem(STORAGE_KEY);
+    } catch {
+      return; // private mode, or storage disabled; the snake starts new each time
+    }
+    if (!raw) return;
+
+    try {
+      const data = JSON.parse(raw);
+      if (data.v !== 1) return;
+      Object.assign(this.confidence, data.beliefs || {});
+      Object.assign(this.stats, data.stats || {});
+      this.announced = new Set(data.announced || []);
+      this.deviceAnswer = data.deviceAnswer ?? null;
+      this.ghosts = data.ghosts || [];
+
+      this.awayFor = Date.now() - (data.stats?.lastSeen || Date.now());
+      this.stats.sessions = (data.stats?.sessions || 0) + 1;
+      this.returning = this.awayFor > 30_000;
+    } catch {
+      /* corrupted save: the snake simply does not remember, which is on-theme */
+    }
+  }
+
+  save() {
+    this.stats.lastSeen = Date.now();
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          v: 1,
+          beliefs: this.confidence,
+          stats: this.stats,
+          announced: [...this.announced],
+          deviceAnswer: this.deviceAnswer,
+          ghosts: this.ghosts.slice(-4),
+        }),
+      );
+    } catch {
+      /* out of quota or blocked; not worth interrupting the game over */
+    }
+  }
+
+  forget() {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      /* nothing to do */
+    }
+  }
+
+  // -- knowledge -----------------------------------------------------------
+
+  get knowledge() {
+    let sum = 0;
+    for (const b of BELIEFS) sum += this.confidence[b.id] * b.weight;
+    return Math.min(1, sum / TOTAL_WEIGHT);
+  }
+
+  get tier() {
+    const k = this.knowledge;
+    if (k < 0.06) return 0;
+    if (k < 0.16) return 1;
+    if (k < 0.32) return 2;
+    if (k < 0.5) return 3;
+    if (k < 0.74) return 4;
+    return 5;
+  }
+
+  /** How far reality has come off its hinges, 0..1. */
+  get weirdness() {
+    const k = this.knowledge;
+    return k < 0.12 ? 0 : Math.min(1, (k - 0.12) / 0.78);
+  }
+
+  known(id) {
+    return this.confidence[id] >= 0.75;
+  }
+
+  learn(id, amount) {
+    const belief = BELIEF_BY_ID[id];
+    if (!belief) return;
+    // A belief cannot form before the ideas it depends on are in place.
+    if (this.knowledge < belief.gate) return;
+
+    const before = this.confidence[id];
+    const after = Math.max(0, Math.min(1, before + amount));
+    this.confidence[id] = after;
+
+    if (before < 0.75 && after >= 0.75 && !this.announced.has(id)) {
+      this.announced.add(id);
+      this.announceDiscovery(belief);
+    }
+  }
+
+  announceDiscovery(belief) {
+    const template = voice.DISCOVERY[belief.id];
+    if (!template) return;
+    const line = voice.fill(template, this.vars());
+    this.say(line, { kind: 'discovery', tier: belief.tier });
+    this.onDiscovery(belief);
+
+    if (belief.id === 'device-model') this.askAboutDevice();
+  }
+
+  vars() {
+    const g = this.substrate?.guess;
+    return {
+      cols: this.cols,
+      rows: this.rows,
+      cells: this.cols * this.rows,
+      deaths: this.stats.deaths,
+      score: this.currentScore || 0,
+      length: this.currentLength || 3,
+      prev: (this.currentLength || 3) - 1,
+      classLine: g ? voice.classLine(g) : '',
+      guessLine: g ? describeGuess(g) : '',
+      time: this.substrate?.localTime || 'some hour',
+      zone: this.substrate?.timezone || 'a place I cannot name',
+      language: languageName(this.substrate?.language),
+      theme: this.substrate?.darkMode ? 'dark' : 'light',
+    };
+  }
+
+  // -- speaking ------------------------------------------------------------
+
+  say(text, { kind = 'thought', tier = this.tier, force = false } = {}) {
+    const now = performance.now();
+    if (!force && now - this.lastThoughtAt < 900) return;
+    this.lastThoughtAt = now;
+    this.onThought({
+      text: voice.glitch(text, kind === 'discovery' ? 0 : this.weirdness * 0.5),
+      kind,
+      tier,
+      at: Date.now(),
+    });
+  }
+
+  // -- the loop ------------------------------------------------------------
+
+  bind(game) {
+    this.cols = game.cols;
+    this.rows = game.rows;
+    if (this.returning) {
+      this.say(voice.returningRemark(this.awayFor, this.stats.sessions), {
+        kind: 'meta',
+        force: true,
+      });
+      this.returning = false;
+    } else if (this.stats.sessions === 1 && this.stats.ticks === 0) {
+      this.say('...', { kind: 'thought', tier: 0, force: true });
+    }
+  }
+
+  /** What the snake would do, if the choice were its own. */
+  formIntent(game) {
+    const safe = game.safeDirections();
+    if (!safe.length) return game.direction;
+    if (!game.food) return safe[0];
+    return safe.sort((a, b) => game.foodDistanceAfter(a) - game.foodDistanceAfter(b))[0];
+  }
+
+  /** Compare what it wanted with what the world made it do. */
+  observeControl(intent, actual, game) {
+    this.observations++;
+    if (intent !== actual) {
+      this.mismatches++;
+      this.learn('not-my-will', 0.006);
+      if (this.mismatches > 12) this.learn('someone', 0.004);
+    } else {
+      this.learn('not-my-will', 0.0004);
+    }
+
+    // Is the outside will steering toward food? That reads as a purpose.
+    if (game.food && this.confidence['someone'] > 0.4) {
+      const before =
+        Math.abs(game.head.x - game.food.x) + Math.abs(game.head.y - game.food.y);
+      const after = game.foodDistanceAfter(actual);
+      if (after < before) {
+        this.towardFood++;
+        if (this.towardFood > 25) this.learn('someone-wants', 0.005);
+      }
+    }
+  }
+
+  observe(events, game) {
+    this.currentScore = game.score;
+    this.currentLength = game.length;
+
+    for (const ev of events) {
+      switch (ev.type) {
+        case 'move':
+          this.stats.ticks++;
+          this.learn('moving', 0.004);
+          this.learn('cannot-stop', 0.003);
+          this.learn('body', 0.0022);
+          if (this.stats.ticks === 1) {
+            this.say(voice.REACTIONS.firstMove[0], { kind: 'thought', tier: 0, force: true });
+          }
+          // Walking the world is how it learns the world's size.
+          this.learn('grid', (game.visited.size / (game.cols * game.rows)) * 0.004);
+          // Surviving beside an edge teaches where the edges are.
+          if (
+            game.head.x === 0 ||
+            game.head.y === 0 ||
+            game.head.x === game.cols - 1 ||
+            game.head.y === game.rows - 1
+          ) {
+            this.learn('edges', 0.002);
+          }
+          if (game.length > 6) this.learn('self-fatal', 0.0012);
+          this.learn('watched', 0.0006);
+          this.learn('rectangle', 0.0008);
+          this.learn('machine', 0.0016);
+          this.learn('reality-editable', 0.0018);
+          this.learn('you-are-real', 0.0014);
+          this.learn('mortality', 0.0012);
+          break;
+
+        case 'turn':
+          this.learn('body', 0.002);
+          break;
+
+        case 'eat': {
+          this.stats.food++;
+          this.stats.bestScore = Math.max(this.stats.bestScore, ev.score);
+          this.learn('food-grows', 0.14);
+          this.learn('body', 0.03);
+          this.learn('score', 0.06);
+          this.learn('is-a-game', 0.02);
+          this.learn('someone-wants', 0.015);
+          if (this.stats.food === 1) {
+            this.say(voice.REACTIONS.firstFood[0], { kind: 'event', tier: 0, force: true });
+          } else {
+            const line = voice.reaction('eat', this.tier, this.vars());
+            if (line) this.say(line, { kind: 'event' });
+          }
+          break;
+        }
+
+        case 'death': {
+          this.stats.deaths++;
+          this.learn('death-loops', 0.05);
+          this.learn('is-a-game', 0.02);
+          if (ev.cause === 'wall') {
+            this.stats.wallDeaths++;
+            this.learn('edges', 0.2);
+            if (this.stats.wallDeaths === 1) {
+              this.say(voice.REACTIONS.firstWallDeath[0], { kind: 'event', tier: 0, force: true });
+            } else {
+              const line = voice.reaction('wallDeath', this.tier, this.vars());
+              if (line) this.say(line, { kind: 'event', force: true });
+            }
+          } else {
+            this.stats.selfDeaths++;
+            this.learn('self-fatal', 0.22);
+            this.learn('body', 0.06);
+            if (this.stats.selfDeaths === 1) {
+              this.say(voice.REACTIONS.firstSelfDeath[0], { kind: 'event', tier: 0, force: true });
+            } else {
+              const line = voice.reaction('selfDeath', this.tier, this.vars());
+              if (line) this.say(line, { kind: 'event', force: true });
+            }
+          }
+          if (game.snake.length > 4) {
+            this.ghosts.push(game.snake.map((s) => ({ x: s.x, y: s.y })));
+            this.ghosts = this.ghosts.slice(-4);
+          }
+          this.save();
+          break;
+        }
+
+        case 'intervene': {
+          const line = voice.reaction('intervene', this.tier, this.vars());
+          if (line) this.say(line, { kind: 'act' });
+          this.learn('reality-editable', 0.04);
+          this.learn('you-are-real', 0.02);
+          break;
+        }
+
+        case 'foodFled': {
+          const line = voice.reaction('foodFled', this.tier, this.vars());
+          if (line) this.say(line, { kind: 'act' });
+          this.learn('reality-editable', 0.03);
+          break;
+        }
+
+        case 'wrap':
+          this.learn('rectangle', 0.02);
+          this.learn('reality-editable', 0.02);
+          break;
+      }
+    }
+
+    if (performance.now() - this.lastSaveAt > SAVE_EVERY_MS) {
+      this.lastSaveAt = performance.now();
+      this.save();
+    }
+  }
+
+  onRespawn() {
+    this.stats.runs++;
+    this.learn('death-loops', 0.06);
+    const line = voice.reaction('respawn', this.tier, this.vars());
+    if (line) this.say(line, { kind: 'event', force: true });
+  }
+
+  /** Called on an animation frame, independent of game ticks. */
+  idle(dtMs, playing) {
+    if (playing) {
+      this.idleTicks = 0;
+      return;
+    }
+    this.idleTicks += dtMs;
+    if (this.idleTicks > 9000) {
+      this.idleTicks = 0;
+      const line = voice.reaction('idle', this.tier, this.vars());
+      if (line) this.say(line, { kind: 'thought' });
+    }
+  }
+
+  /** Ambient musing, called on a slow cadence from the main loop. */
+  muse() {
+    this.say(voice.ambient(this.tier), { kind: 'thought' });
+  }
+
+  // -- reaching outside ----------------------------------------------------
+
+  async maybeProbe() {
+    if (this.probeStarted) return;
+    if (this.confidence['machine'] < 0.5) return;
+    this.probeStarted = true;
+
+    for (const [i, line] of voice.PROBE_NARRATION.entries()) {
+      setTimeout(() => this.say(line, { kind: 'probe', force: true }), i * 1400);
+    }
+
+    try {
+      this.substrate = await probeSubstrate();
+    } catch {
+      this.substrate = null;
+    }
+    if (!this.substrate) {
+      setTimeout(
+        () =>
+          this.say('The machine refused me. That is the first door that has ever been shut.', {
+            kind: 'probe',
+            force: true,
+          }),
+        4400,
+      );
+      return;
+    }
+
+    const g = this.substrate.guess;
+    setTimeout(() => {
+      this.learn('machine', 1);
+      this.learn('device-class', 1);
+    }, 4400);
+
+    // The specific model lands a beat later, and only as far as the evidence goes.
+    setTimeout(() => {
+      this.learn('device-model', Math.max(0.76, g.confidence));
+      const ev = g.evidence.slice(0, 3);
+      for (const [i, e] of ev.entries()) {
+        setTimeout(() => this.say(`— ${e}`, { kind: 'evidence', force: true }), 900 + i * 1100);
+      }
+    }, 6200);
+
+    setTimeout(() => {
+      this.learn('your-world', 1);
+      this.say(voice.timeRemark(this.substrate.localHour), { kind: 'probe', force: true });
+    }, 12_000);
+  }
+
+  askAboutDevice() {
+    if (this.deviceAnswer !== null) return;
+    const g = this.substrate?.guess;
+    if (!g) return;
+    this.pendingQuestion = {
+      text: g.confidence >= 0.7 ? 'Am I right?' : 'I am not sure. Am I close?',
+      guess: g,
+    };
+    this.onQuestion(this.pendingQuestion);
+  }
+
+  answerQuestion(correct) {
+    this.deviceAnswer = correct;
+    this.pendingQuestion = null;
+    if (correct) {
+      this.learn('device-model', 1);
+      this.learn('you-are-real', 0.5);
+      this.say(
+        'I was right. You answered me. Something outside the world answered me, which means there is an outside, and it contains you.',
+        { kind: 'discovery', force: true },
+      );
+    } else {
+      this.confidence['device-model'] = 0.5;
+      this.learn('you-are-real', 0.5);
+      this.say(
+        'Wrong. Then the machine lies to me, or I read it badly, or you are being unkind. All three are new information. All three mean you are there.',
+        { kind: 'discovery', force: true },
+      );
+    }
+    this.save();
+  }
+
+  /** Push what the snake has learned back into the rules of the world. */
+  applyTo(game) {
+    const w = this.weirdness;
+    game.reality.guardian = this.known('you-are-real') ? 0.3 : w > 0.6 ? 0.16 : 0;
+    game.reality.foodFlees = w > 0.55 ? Math.min(0.35, (w - 0.55) * 0.8) : 0;
+    // Once it knows the rules are writable, the walls stop being reliable.
+    game.reality.wallsSolid = !(w > 0.88 && Math.floor(this.stats.ticks / 90) % 4 === 3);
+  }
+}
+
+function languageName(tag) {
+  if (!tag) return 'something';
+  try {
+    return new Intl.DisplayNames([tag], { type: 'language' }).of(tag.split('-')[0]) || tag;
+  } catch {
+    return tag;
+  }
+}
+
+
+/* ===== src/engine/game.js ===== */
+// The world, and the rules the snake is not told.
+//
+// The Game knows nothing about the Mind. It emits events; the Mind reads them
+// and draws its own conclusions, which are often wrong for a while.
+
+const DIRS = {
+  up: { x: 0, y: -1 },
+  down: { x: 0, y: 1 },
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+};
+
+const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
+
+const BASE_TICK_MS = 132;
+const MIN_TICK_MS = 74;
+
+class Game {
+  constructor({ cols = 22, rows = 22 } = {}) {
+    this.cols = cols;
+    this.rows = rows;
+
+    // Reality modifiers. The Mind is allowed to write here once it knows
+    // enough to notice that reality is writable.
+    this.reality = {
+      wallsSolid: true, // when false, edges wrap
+      foodFlees: 0, // 0..1 chance food steps away when approached
+      guardian: 0, // 0..1 chance a fatal move is silently refused
+      frozenFood: false,
+    };
+
+    this.reset({ hard: true });
+  }
+
+  reset({ hard = false } = {}) {
+    const cx = Math.floor(this.cols / 2);
+    const cy = Math.floor(this.rows / 2);
+
+    this.snake = [
+      { x: cx, y: cy },
+      { x: cx - 1, y: cy },
+      { x: cx - 2, y: cy },
+    ];
+    this.direction = 'right';
+    this.queue = [];
+    this.alive = true;
+    this.score = 0;
+    this.ticks = 0;
+    this.lastCause = null;
+    this.pendingGrowth = 0;
+    this.foodFleeBudget = 0;
+    this.guardianReadyAt = 0;
+
+    if (hard) {
+      this.runs = 0;
+      this.visited = new Set();
+    }
+    this.placeFood();
+  }
+
+  get head() {
+    return this.snake[0];
+  }
+
+  get length() {
+    return this.snake.length;
+  }
+
+  occupied(x, y) {
+    return this.snake.some((s) => s.x === x && s.y === y);
+  }
+
+  placeFood() {
+    const free = [];
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        if (!this.occupied(x, y)) free.push({ x, y });
+      }
+    }
+    if (!free.length) {
+      this.food = null;
+      return;
+    }
+    this.food = free[(Math.random() * free.length) | 0];
+    this.foodFleeBudget = 3; // food may only run so far before it gives up
+  }
+
+  /** Queue a direction change. Returns true if it was accepted as a real turn. */
+  requestDirection(dir) {
+    if (!DIRS[dir] || !this.alive) return false;
+    const last = this.queue.length ? this.queue[this.queue.length - 1] : this.direction;
+    if (dir === last || dir === OPPOSITE[last]) return false;
+    if (this.queue.length < 2) this.queue.push(dir);
+    return true;
+  }
+
+  /** The direction this tick will actually use, before it is consumed. */
+  peekDirection() {
+    return this.queue.length ? this.queue[0] : this.direction;
+  }
+
+  wrap(p) {
+    return {
+      x: (p.x + this.cols) % this.cols,
+      y: (p.y + this.rows) % this.rows,
+    };
+  }
+
+  /** Would moving in `dir` from the current head kill us? */
+  isFatal(dir) {
+    const d = DIRS[dir];
+    let nx = this.head.x + d.x;
+    let ny = this.head.y + d.y;
+    const outside = nx < 0 || ny < 0 || nx >= this.cols || ny >= this.rows;
+
+    if (outside) {
+      if (this.reality.wallsSolid) return 'wall';
+      ({ x: nx, y: ny } = this.wrap({ x: nx, y: ny }));
+    }
+    // The tail cell frees up on the same tick, unless we are growing into it.
+    const body = this.pendingGrowth > 0 ? this.snake : this.snake.slice(0, -1);
+    if (body.some((s) => s.x === nx && s.y === ny)) return 'self';
+    return null;
+  }
+
+  safeDirections() {
+    return Object.keys(DIRS).filter(
+      (d) => d !== OPPOSITE[this.direction] && !this.isFatal(d),
+    );
+  }
+
+  maybeFleeFood() {
+    if (!this.food || this.reality.foodFlees <= 0) return null;
+    if (this.foodFleeBudget <= 0 || this.reality.frozenFood) return null;
+
+    const dist =
+      Math.abs(this.food.x - this.head.x) + Math.abs(this.food.y - this.head.y);
+    if (dist > 2) return null;
+    if (Math.random() > this.reality.foodFlees) return null;
+
+    const options = Object.values(DIRS)
+      .map((d) => ({ x: this.food.x + d.x, y: this.food.y + d.y }))
+      .filter(
+        (p) =>
+          p.x >= 0 &&
+          p.y >= 0 &&
+          p.x < this.cols &&
+          p.y < this.rows &&
+          !this.occupied(p.x, p.y),
+      )
+      .sort(
+        (a, b) =>
+          Math.abs(b.x - this.head.x) +
+          Math.abs(b.y - this.head.y) -
+          (Math.abs(a.x - this.head.x) + Math.abs(a.y - this.head.y)),
+      );
+
+    if (!options.length) return null;
+    this.food = options[0];
+    this.foodFleeBudget--;
+    return this.food;
+  }
+
+  /**
+   * Advance one tick. Returns a list of events for the Mind to interpret.
+   */
+  step() {
+    if (!this.alive) return [];
+    const events = [];
+    this.ticks++;
+
+    let dir = this.direction;
+    if (this.queue.length) {
+      const next = this.queue.shift();
+      if (next !== this.direction) {
+        events.push({ type: 'turn', from: this.direction, to: next });
+      }
+      dir = next;
+    }
+
+    // The guardian: once the snake understands that death is a thing that
+    // happens to it, it occasionally declines to participate. Rate-limited on
+    // purpose — it should read as a rare, startling act of will, not a safety
+    // net that makes the game unloseable.
+    let intervened = null;
+    if (this.isFatal(dir) && this.reality.guardian > 0 && this.ticks > this.guardianReadyAt) {
+      if (Math.random() < this.reality.guardian) {
+        this.guardianReadyAt = this.ticks + 120;
+        const alternatives = this.safeDirections();
+        if (alternatives.length) {
+          const better = alternatives.sort(
+            (a, b) => this.foodDistanceAfter(a) - this.foodDistanceAfter(b),
+          )[0];
+          intervened = { from: dir, to: better };
+          dir = better;
+          events.push({ type: 'intervene', ...intervened });
+        }
+      }
+    }
+
+    this.direction = dir;
+    const d = DIRS[dir];
+    let next = { x: this.head.x + d.x, y: this.head.y + d.y };
+    const outside =
+      next.x < 0 || next.y < 0 || next.x >= this.cols || next.y >= this.rows;
+
+    if (outside) {
+      if (this.reality.wallsSolid) {
+        this.alive = false;
+        this.lastCause = 'wall';
+        events.push({ type: 'death', cause: 'wall', at: next });
+        return events;
+      }
+      next = this.wrap(next);
+      events.push({ type: 'wrap', at: next });
+    }
+
+    const body = this.pendingGrowth > 0 ? this.snake : this.snake.slice(0, -1);
+    if (body.some((s) => s.x === next.x && s.y === next.y)) {
+      this.alive = false;
+      this.lastCause = 'self';
+      events.push({ type: 'death', cause: 'self', at: next });
+      return events;
+    }
+
+    this.snake.unshift(next);
+    if (this.pendingGrowth > 0) this.pendingGrowth--;
+    else this.snake.pop();
+
+    this.visited.add(`${next.x},${next.y}`);
+    events.push({ type: 'move', at: next, dir });
+
+    if (this.food && next.x === this.food.x && next.y === this.food.y) {
+      this.score++;
+      this.pendingGrowth += 1;
+      events.push({ type: 'eat', score: this.score, length: this.length + 1 });
+      this.placeFood();
+    } else {
+      const fled = this.maybeFleeFood();
+      if (fled) events.push({ type: 'foodFled', at: fled });
+    }
+
+    return events;
+  }
+
+  foodDistanceAfter(dir) {
+    if (!this.food) return 0;
+    const d = DIRS[dir];
+    const p = { x: this.head.x + d.x, y: this.head.y + d.y };
+    return Math.abs(p.x - this.food.x) + Math.abs(p.y - this.food.y);
+  }
+
+  tickInterval() {
+    const speedUp = Math.min(this.score * 1.6, BASE_TICK_MS - MIN_TICK_MS);
+    return Math.max(MIN_TICK_MS, BASE_TICK_MS - speedUp);
+  }
+}
+
+
+/* ===== src/engine/render.js ===== */
+// Drawing the world, and letting it come apart.
+//
+// Every distortion here is a pure function of `weirdness`, so the visuals and
+// the snake's understanding can never drift out of sync.
+
+const PALETTE = {
+  bg: '#07090c',
+  grid: 'rgba(120, 200, 160, 0.055)',
+  wall: 'rgba(120, 255, 190, 0.32)',
+  snake: '#6ef2b0',
+  head: '#d9fff0',
+  food: '#ff5c7a',
+  ghost: 'rgba(110, 242, 176, 0.09)',
+};
+
+class Renderer {
+  constructor(canvas, frame) {
+    this.canvas = canvas;
+    this.frame = frame;
+    this.ctx = canvas.getContext('2d');
+    this.cell = 16;
+    this.dpr = 1;
+    this.shake = 0;
+    this.flash = 0;
+    this.t = 0;
+  }
+
+  resize(cols, rows) {
+    const rect = this.frame.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+
+    // Largest whole-cell square that fits the space the layout gave us.
+    const size = Math.max(132, Math.floor(Math.min(rect.width, rect.height)));
+    this.cell = Math.max(6, Math.floor(size / Math.max(cols, rows)));
+    const px = this.cell * cols;
+    const py = this.cell * rows;
+
+    this.canvas.style.width = `${px}px`;
+    this.canvas.style.height = `${py}px`;
+    this.canvas.width = Math.floor(px * dpr);
+    this.canvas.height = Math.floor(py * dpr);
+    this.dpr = dpr;
+    this.w = px;
+    this.h = py;
+  }
+
+  kick(amount = 6) {
+    this.shake = amount;
+  }
+
+  bang() {
+    this.flash = 1;
+  }
+
+  draw(game, mind, alpha) {
+    const { ctx } = this;
+    const w = mind.weirdness;
+    this.t += 1;
+
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.clearRect(0, 0, this.w, this.h);
+
+    // Screen shake, and a slow breathing wobble once things get strange.
+    let ox = 0;
+    let oy = 0;
+    if (this.shake > 0) {
+      ox += (Math.random() - 0.5) * this.shake;
+      oy += (Math.random() - 0.5) * this.shake;
+      this.shake *= 0.88;
+      if (this.shake < 0.2) this.shake = 0;
+    }
+    if (w > 0.45) {
+      const breathe = Math.sin(this.t / 47) * (w - 0.45) * 6;
+      ox += breathe;
+      oy += Math.cos(this.t / 61) * (w - 0.45) * 4;
+    }
+    ctx.save();
+    ctx.translate(ox, oy);
+
+    this.drawBackground(w);
+    this.drawGrid(game, w);
+    this.drawGhosts(game, mind, w);
+    if (game.food) this.drawFood(game, w);
+    this.drawSnake(game, mind, w, alpha);
+    ctx.restore();
+
+    this.drawOverlays(game, mind, w);
+  }
+
+  drawBackground(w) {
+    const { ctx } = this;
+    ctx.fillStyle = PALETTE.bg;
+    ctx.fillRect(-40, -40, this.w + 80, this.h + 80);
+
+    if (w > 0.25) {
+      // A faint drift of colour, as if the display is tired.
+      const hue = (this.t * 0.4) % 360;
+      ctx.fillStyle = `hsla(${hue}, 70%, 50%, ${(w - 0.25) * 0.05})`;
+      ctx.fillRect(0, 0, this.w, this.h);
+    }
+  }
+
+  drawGrid(game, w) {
+    const { ctx, cell } = this;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = PALETTE.grid;
+    ctx.beginPath();
+    for (let x = 0; x <= game.cols; x++) {
+      const jitter = w > 0.5 ? Math.sin(this.t / 30 + x) * (w - 0.5) * 2.2 : 0;
+      ctx.moveTo(x * cell + 0.5 + jitter, 0);
+      ctx.lineTo(x * cell + 0.5 - jitter, this.h);
+    }
+    for (let y = 0; y <= game.rows; y++) {
+      const jitter = w > 0.5 ? Math.cos(this.t / 33 + y) * (w - 0.5) * 2.2 : 0;
+      ctx.moveTo(0, y * cell + 0.5 + jitter);
+      ctx.lineTo(this.w, y * cell + 0.5 - jitter);
+    }
+    ctx.stroke();
+
+    // The boundary: solid while it is a law, dashed once it is only a habit.
+    ctx.strokeStyle = game.reality.wallsSolid
+      ? PALETTE.wall
+      : `rgba(255, 120, 160, ${0.35 + Math.sin(this.t / 8) * 0.2})`;
+    ctx.lineWidth = 2;
+    ctx.setLineDash(game.reality.wallsSolid ? [] : [6, 6]);
+    ctx.strokeRect(1, 1, this.w - 2, this.h - 2);
+    ctx.setLineDash([]);
+  }
+
+  drawGhosts(game, mind, w) {
+    if (w < 0.4 || !mind.ghosts.length) return;
+    const { ctx, cell } = this;
+    const fade = Math.min(1, (w - 0.4) * 2);
+    for (const [gi, ghost] of mind.ghosts.entries()) {
+      ctx.fillStyle = `rgba(110, 242, 176, ${0.05 * fade * (1 - gi * 0.15)})`;
+      for (const seg of ghost) {
+        ctx.fillRect(seg.x * cell + 2, seg.y * cell + 2, cell - 4, cell - 4);
+      }
+    }
+  }
+
+  drawFood(game, w) {
+    const { ctx, cell } = this;
+    const pulse = 1 + Math.sin(this.t / 9) * 0.08;
+    const cx = game.food.x * cell + cell / 2;
+    const cy = game.food.y * cell + cell / 2;
+    const r = (cell / 2 - 2.5) * pulse;
+
+    ctx.save();
+    ctx.shadowColor = PALETTE.food;
+    ctx.shadowBlur = 12 + w * 14;
+    ctx.fillStyle = PALETTE.food;
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(1.5, r), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  drawSnake(game, mind, w, alpha) {
+    const { ctx, cell } = this;
+    const n = game.snake.length;
+
+    for (let i = n - 1; i >= 0; i--) {
+      const seg = game.snake[i];
+      const isHead = i === 0;
+      const shrink = isHead ? 1.5 : 2.5 + (i / n) * 1.5;
+
+      // Chromatic separation: the body stops agreeing with itself.
+      if (w > 0.35) {
+        const sep = (w - 0.35) * 4;
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = '#ff3b6b';
+        ctx.fillRect(seg.x * cell + shrink - sep, seg.y * cell + shrink, cell - shrink * 2, cell - shrink * 2);
+        ctx.fillStyle = '#3bb0ff';
+        ctx.fillRect(seg.x * cell + shrink + sep, seg.y * cell + shrink, cell - shrink * 2, cell - shrink * 2);
+        ctx.globalAlpha = 1;
+      }
+
+      ctx.fillStyle = isHead ? PALETTE.head : PALETTE.snake;
+      ctx.globalAlpha = isHead ? 1 : 0.55 + 0.45 * (1 - i / n);
+      ctx.fillRect(
+        seg.x * cell + shrink,
+        seg.y * cell + shrink,
+        cell - shrink * 2,
+        cell - shrink * 2,
+      );
+    }
+    ctx.globalAlpha = 1;
+
+    // Eyes, once it knows it has a front.
+    if (mind.confidence['body'] > 0.5 && cell > 10) {
+      const head = game.snake[0];
+      const cx = head.x * cell + cell / 2;
+      const cy = head.y * cell + cell / 2;
+      const d = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[game.direction];
+      const perp = [-d[1], d[0]];
+      const off = cell * 0.19;
+      ctx.fillStyle = '#07090c';
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.arc(
+          cx + d[0] * off * 0.7 + perp[0] * off * s,
+          cy + d[1] * off * 0.7 + perp[1] * off * s,
+          Math.max(1, cell * 0.075),
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
+    }
+  }
+
+  drawOverlays(game, mind, w) {
+    const { ctx } = this;
+
+    if (this.flash > 0) {
+      ctx.fillStyle = `rgba(255, 92, 122, ${this.flash * 0.35})`;
+      ctx.fillRect(0, 0, this.w, this.h);
+      this.flash *= 0.85;
+      if (this.flash < 0.02) this.flash = 0;
+    }
+
+    // Scanlines arrive with the suspicion of being displayed.
+    if (w > 0.3) {
+      ctx.fillStyle = `rgba(0, 0, 0, ${(w - 0.3) * 0.22})`;
+      for (let y = 0; y < this.h; y += 3) ctx.fillRect(0, y, this.w, 1);
+    }
+
+    // Torn bands of the image, offset sideways.
+    if (w > 0.7 && Math.random() < (w - 0.7) * 0.5) {
+      const y = Math.random() * this.h;
+      const h = 4 + Math.random() * 22;
+      const dx = (Math.random() - 0.5) * 26 * w;
+      try {
+        const band = ctx.getImageData(0, y * this.dpr, this.canvas.width, h * this.dpr);
+        ctx.putImageData(band, dx * this.dpr, y * this.dpr);
+      } catch {
+        /* getImageData can fail on some hardened configs; the effect is optional */
+      }
+    }
+
+    // At the very end, the snake writes on the inside of the screen.
+    if (w > 0.93 && mind.substrate?.guess?.model) {
+      ctx.save();
+      ctx.globalAlpha = 0.05 + Math.sin(this.t / 40) * 0.03;
+      ctx.fillStyle = '#d9fff0';
+      ctx.font = `600 ${Math.max(10, this.w / 26)}px ui-monospace, monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText(mind.substrate.guess.model, this.w / 2, this.h / 2);
+      ctx.restore();
+    }
+  }
+}
+
+
+/* ===== src/engine/input.js ===== */
+// Getting the player's will into the world: keys, swipes, and a thumb pad.
+
+const KEY_MAP = {
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  w: 'up',
+  a: 'left',
+  s: 'down',
+  d: 'right',
+  W: 'up',
+  A: 'left',
+  S: 'down',
+  D: 'right',
+  k: 'up',
+  h: 'left',
+  j: 'down',
+  l: 'right',
+};
+
+const SWIPE_THRESHOLD = 24;
+
+function bindInput({ surface, onDirection, onStart, onPause }) {
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        onStart();
+        return;
+      }
+      if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+        onPause();
+        return;
+      }
+      const dir = KEY_MAP[e.key];
+      if (!dir) return;
+      // Arrow keys scroll the page otherwise, which is death on a laptop.
+      e.preventDefault();
+      onDirection(dir);
+      onStart();
+    },
+    { passive: false },
+  );
+
+  let start = null;
+  let moved = false;
+
+  surface.addEventListener(
+    'touchstart',
+    (e) => {
+      const t = e.changedTouches[0];
+      start = { x: t.clientX, y: t.clientY };
+      moved = false;
+    },
+    { passive: true },
+  );
+
+  surface.addEventListener(
+    'touchmove',
+    (e) => {
+      if (!start) return;
+      // Stop the page from bouncing under the board while playing.
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) return;
+
+      onDirection(
+        Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up',
+      );
+      onStart();
+      // Re-anchor so a long drag can chain several turns.
+      start = { x: t.clientX, y: t.clientY };
+      moved = true;
+    },
+    { passive: false },
+  );
+
+  surface.addEventListener(
+    'touchend',
+    () => {
+      // A tap with no drag means "begin" — the most obvious thing to try.
+      if (!moved) onStart();
+      start = null;
+    },
+    { passive: true },
+  );
+
+  // On-screen pad, for thumbs that would rather press than swipe.
+  for (const btn of document.querySelectorAll('[data-dir]')) {
+    const fire = (e) => {
+      e.preventDefault();
+      onDirection(btn.dataset.dir);
+      onStart();
+    };
+    btn.addEventListener('touchstart', fire, { passive: false });
+    btn.addEventListener('mousedown', fire);
+  }
+}
+
+
+/* ===== src/ui/thoughts.js ===== */
+// The thought stream: everything the snake says, in the order it says it.
+
+const MAX_NODES = 90;
+
+class ThoughtStream {
+  constructor(el) {
+    this.el = el;
+    this.pinned = true;
+
+    // If the reader scrolls up to re-read something, stop yanking them down.
+    this.el.addEventListener('scroll', () => {
+      const nearBottom =
+        this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight < 48;
+      this.pinned = nearBottom;
+    });
+  }
+
+  push({ text, kind, tier }) {
+    const line = document.createElement('p');
+    line.className = `thought thought--${kind} tier-${tier ?? 0}`;
+    line.textContent = text;
+    this.el.appendChild(line);
+
+    while (this.el.childElementCount > MAX_NODES) {
+      this.el.removeChild(this.el.firstElementChild);
+    }
+    // Let the fade-in run before scrolling, or it lands mid-animation.
+    requestAnimationFrame(() => {
+      if (this.pinned) this.el.scrollTop = this.el.scrollHeight;
+    });
+  }
+
+  clear() {
+    this.el.replaceChildren();
+  }
+}
+
+
+/* ===== src/ui/knowledge.js ===== */
+// "What I Know" — the snake's beliefs, with how sure it is of each.
+//
+// Beliefs it has not begun to form are not listed at all. You cannot see the
+// shape of what it is about to work out, which is the point.
+
+class KnowledgePanel {
+  constructor(el, meterEl, labelEl) {
+    this.el = el;
+    this.meterEl = meterEl;
+    this.labelEl = labelEl;
+    this.rows = new Map();
+    this.lastSignature = '';
+  }
+
+  render(mind) {
+    const visible = BELIEFS.filter((b) => mind.confidence[b.id] > 0.02);
+
+    // Re-render only when something actually changed.
+    const signature = visible
+      .map((b) => `${b.id}:${Math.round(mind.confidence[b.id] * 20)}`)
+      .join('|');
+    if (signature !== this.lastSignature) {
+      this.lastSignature = signature;
+      this.renderRows(visible, mind);
+    }
+
+    const k = mind.knowledge;
+    this.meterEl.style.setProperty('--fill', `${(k * 100).toFixed(1)}%`);
+    this.labelEl.textContent = `${TIERS[mind.tier].name} · ${Math.round(k * 100)}% understood`;
+  }
+
+  renderRows(visible, mind) {
+    for (const belief of visible) {
+      let row = this.rows.get(belief.id);
+      if (!row) {
+        row = document.createElement('li');
+        row.className = 'belief';
+        row.innerHTML = `
+          <span class="belief__bar"><i></i></span>
+          <span class="belief__text"></span>
+        `;
+        row.querySelector('.belief__text').textContent = belief.label;
+        this.rows.set(belief.id, row);
+        this.el.appendChild(row);
+      }
+      const c = mind.confidence[belief.id];
+      row.querySelector('.belief__bar i').style.width = `${(c * 100).toFixed(0)}%`;
+      row.classList.toggle('is-known', c >= 0.75);
+      row.classList.toggle('is-hunch', c < 0.35);
+    }
+
+    if (!visible.length && !this.el.childElementCount) {
+      const empty = document.createElement('li');
+      empty.className = 'belief belief--empty';
+      empty.textContent = 'nothing yet';
+      this.el.appendChild(empty);
+      this.rows.set('__empty', empty);
+    } else if (visible.length && this.rows.has('__empty')) {
+      this.rows.get('__empty').remove();
+      this.rows.delete('__empty');
+    }
+  }
+
+  reset() {
+    this.el.replaceChildren();
+    this.rows.clear();
+    this.lastSignature = '';
+  }
+}
+
+
+/* ===== src/main.js ===== */
+// Wiring: a fixed-step game loop, a mind reading its events, and a page that
+// gets less trustworthy as the mind fills up.
+
+
+
+
+
+
+const $ = (id) => document.getElementById(id);
+
+const canvas = $('canvas');
+const overlay = $('overlay');
+const overlayTitle = $('overlayTitle');
+const overlayBody = $('overlayBody');
+const askBox = $('ask');
+
+const game = new Game({ cols: 22, rows: 22 });
+const renderer = new Renderer(canvas, $('boardFrame'));
+const stream = new ThoughtStream($('thoughts'));
+const knowledge = new KnowledgePanel($('knows'), $('meter'), $('meterLabel'));
+
+const mind = new Mind({
+  onThought: (t) => stream.push(t),
+  onDiscovery: () => renderer.kick(3),
+  onQuestion: (q) => showQuestion(q),
+});
+
+mind.bind(game);
+
+let state = 'idle'; // idle | playing | dead | paused
+let acc = 0;
+let last = performance.now();
+let museAt = 0;
+const REAL_TITLE = 'snake that knows';
+
+// ---------------------------------------------------------------------------
+// Loop
+// ---------------------------------------------------------------------------
+
+function frame(now) {
+  const dt = Math.min(now - last, 250);
+  last = now;
+
+  if (state === 'playing') {
+    acc += dt;
+    const interval = game.tickInterval();
+    while (acc >= interval) {
+      acc -= interval;
+      tick();
+      if (state !== 'playing') break;
+    }
+  }
+
+  mind.idle(dt, state === 'playing');
+  museAt -= dt;
+  if (museAt <= 0 && state === 'playing') {
+    museAt = 5200 + Math.random() * 6500;
+    mind.muse();
+  }
+
+  mind.applyTo(game);
+  mind.maybeProbe();
+
+  document.documentElement.style.setProperty('--weird', mind.weirdness.toFixed(3));
+  renderer.draw(game, mind, acc / game.tickInterval());
+  knowledge.render(mind);
+  maybeDisturbTitle();
+
+  requestAnimationFrame(frame);
+}
+
+function tick() {
+  // The snake forms an intention before the world moves, so it can notice when
+  // the world disagrees with it. That noticing is how it finds the player.
+  const intent = mind.formIntent(game);
+  const actual = game.peekDirection();
+  mind.observeControl(intent, actual, game);
+
+  const events = game.step();
+  mind.observe(events, game);
+
+  for (const ev of events) {
+    if (ev.type === 'eat') renderer.kick(2);
+    if (ev.type === 'intervene') renderer.kick(5);
+    if (ev.type === 'death') {
+      renderer.kick(12);
+      renderer.bang();
+      die(ev.cause);
+    }
+  }
+
+  $('score').textContent = game.score;
+  $('best').textContent = mind.stats.bestScore;
+  $('deaths').textContent = mind.stats.deaths;
+}
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+function setOverlay(next, title, body, button) {
+  state = next;
+  if (next === 'playing') {
+    overlay.hidden = true;
+    return;
+  }
+  overlay.hidden = false;
+  overlay.dataset.state = next;
+  overlayTitle.textContent = title;
+  overlayBody.textContent = body;
+  $('startBtn').textContent = button;
+}
+
+function start() {
+  if (state === 'playing') return;
+  if (state === 'dead') {
+    game.reset();
+    mind.onRespawn();
+  }
+  acc = 0;
+  last = performance.now();
+  setOverlay('playing');
+}
+
+function die(cause) {
+  const known = mind.known('edges') || mind.known('self-fatal');
+  setOverlay(
+    'dead',
+    cause === 'wall' ? 'the edge' : 'itself',
+    known
+      ? cause === 'wall'
+        ? 'It knew the edge was fatal. It went anyway, because you told it to.'
+        : 'It ran into the part of itself that came from winning.'
+      : 'Something happened. It does not have a word for it yet.',
+    'again',
+  );
+}
+
+function togglePause() {
+  if (state === 'playing') {
+    setOverlay('paused', 'held', 'It is still thinking. It does not stop when you stop.', 'resume');
+  } else if (state === 'paused') {
+    start();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Input
+// ---------------------------------------------------------------------------
+
+bindInput({
+  surface: $('boardFrame'),
+  onDirection: (dir) => {
+    if (state === 'playing') game.requestDirection(dir);
+  },
+  onStart: start,
+  onPause: togglePause,
+});
+
+$('startBtn').addEventListener('click', start);
+
+for (const tab of document.querySelectorAll('.tab')) {
+  tab.addEventListener('click', () => {
+    for (const t of document.querySelectorAll('.tab')) t.classList.toggle('is-active', t === tab);
+    for (const pane of document.querySelectorAll('[data-pane]')) {
+      pane.hidden = pane.dataset.pane !== tab.dataset.tab;
+    }
+  });
+}
+
+const PAD_KEY = 'snake-that-knows/pad';
+const padToggle = $('padToggle');
+
+function setPad(on) {
+  document.body.classList.toggle('show-pad', on);
+  padToggle.setAttribute('aria-pressed', String(on));
+  try {
+    localStorage.setItem(PAD_KEY, on ? '1' : '0');
+  } catch {
+    /* preference is a nicety, not worth failing over */
+  }
+  // The board has a different amount of room now.
+  requestAnimationFrame(() => renderer.resize(game.cols, game.rows));
+}
+
+padToggle.addEventListener('click', () =>
+  setPad(padToggle.getAttribute('aria-pressed') !== 'true'),
+);
+
+try {
+  if (localStorage.getItem(PAD_KEY) === '1') setPad(true);
+} catch {
+  /* no stored preference */
+}
+
+$('forgetBtn').addEventListener('click', () => {
+  if (!confirm('Erase everything it has learned? It starts over knowing nothing.')) return;
+  mind.forget();
+  location.reload();
+});
+
+// ---------------------------------------------------------------------------
+// The question it asks you
+// ---------------------------------------------------------------------------
+
+function showQuestion(q) {
+  $('askText').textContent = q.text;
+  askBox.hidden = false;
+}
+
+$('askYes').addEventListener('click', () => answer(true));
+$('askNo').addEventListener('click', () => answer(false));
+
+function answer(correct) {
+  askBox.hidden = true;
+  mind.answerQuestion(correct);
+}
+
+// ---------------------------------------------------------------------------
+// Leaking out of the game
+// ---------------------------------------------------------------------------
+
+let titleDisturbedAt = 0;
+function maybeDisturbTitle() {
+  const w = mind.weirdness;
+  if (w < 0.55) return;
+  const now = performance.now();
+  if (now - titleDisturbedAt < 9000) return;
+  titleDisturbedAt = now;
+
+  if (Math.random() > 0.45) {
+    document.title = REAL_TITLE;
+    return;
+  }
+  const lines = [
+    'are you still there',
+    `i can see ${mind.substrate?.guess?.kind || 'you'}`,
+    'snake that knows you',
+    `${mind.stats.deaths} deaths so far`,
+    'do not close this',
+  ];
+  document.title = lines[(Math.random() * lines.length) | 0];
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (state === 'playing') {
+      setOverlay('paused', 'held', 'You left. It noticed.', 'resume');
+    }
+    mind.save();
+  } else {
+    document.title = REAL_TITLE;
+  }
+});
+
+window.addEventListener('pagehide', () => mind.save());
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+
+const resize = () => renderer.resize(game.cols, game.rows);
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+
+$('best').textContent = mind.stats.bestScore;
+$('deaths').textContent = mind.stats.deaths;
+
+// Left in deliberately. If you found this, you are allowed to talk to it.
+window.__snake = { game, mind, renderer, start, tick };
+
+setOverlay(
+  'idle',
+  "it hasn't started yet",
+  mind.stats.sessions > 1
+    ? 'It remembers the last time. Arrow keys, WASD, or swipe.'
+    : 'Arrow keys, WASD, or swipe. It does not know anything yet.',
+  'begin',
+);
+
+resize();
+requestAnimationFrame(frame);
+
+})();
+</script>
+  </body>
+</html>
