@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1"
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="A snake game where the snake learns the rules by playing, narrates its thoughts, and eventually works out what device you are holding."
+    />
+    <meta name="theme-color" content="#07090c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>snake that knows</title>
+    <link rel="stylesheet" href="./styles/main.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%2307090c'/><rect x='6' y='14' width='14' height='5' fill='%236ef2b0'/><circle cx='24' cy='16' r='3' fill='%23ff5c7a'/></svg>"
+    />
+  </head>
+  <body>
+    <div class="app">
+      <header class="bar">
+        <h1 class="bar__title">snake<span>that knows</span></h1>
+        <div class="bar__stats">
+          <span class="stat"><b id="score">0</b><small>score</small></span>
+          <span class="stat"><b id="best">0</b><small>best</small></span>
+          <span class="stat"><b id="deaths">0</b><small>deaths</small></span>
+          <button
+            class="padtoggle"
+            id="padToggle"
+            type="button"
+            aria-pressed="false"
+            title="Show or hide the on-screen pad"
+          >
+            ✛
+          </button>
+        </div>
+      </header>
+
+      <main class="stage">
+        <section class="board" aria-label="Game board">
+          <div class="board__frame" id="boardFrame">
+            <div class="board__stack" id="boardStack">
+              <canvas id="canvas" role="img" aria-label="Snake game board"></canvas>
+
+              <div class="overlay" id="overlay" data-state="idle">
+                <div class="overlay__card">
+                  <p class="overlay__title" id="overlayTitle">it hasn't started yet</p>
+                  <p class="overlay__body" id="overlayBody">
+                    Arrow keys, WASD, or swipe. It does not know anything yet.
+                  </p>
+                  <button class="btn" id="startBtn" type="button">begin</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pad" aria-hidden="true">
+            <button class="pad__btn pad__btn--up" data-dir="up" type="button">▲</button>
+            <button class="pad__btn pad__btn--left" data-dir="left" type="button">◀</button>
+            <button class="pad__btn pad__btn--right" data-dir="right" type="button">▶</button>
+            <button class="pad__btn pad__btn--down" data-dir="down" type="button">▼</button>
+          </div>
+        </section>
+
+        <aside class="panel">
+          <div class="panel__meter">
+            <div class="meter" id="meter"><i></i></div>
+            <span class="meter__label" id="meterLabel">sensation · 0% understood</span>
+          </div>
+
+          <div class="panel__tabs" role="tablist">
+            <button class="tab is-active" data-tab="thoughts" role="tab" type="button">
+              thoughts
+            </button>
+            <button class="tab" data-tab="knows" role="tab" type="button">what it knows</button>
+          </div>
+
+          <div class="panel__body">
+            <div class="thoughts" id="thoughts" data-pane="thoughts" role="log" aria-live="polite"></div>
+            <ul class="knows" id="knows" data-pane="knows" hidden></ul>
+          </div>
+
+          <div class="ask" id="ask" hidden>
+            <p class="ask__text" id="askText"></p>
+            <div class="ask__row">
+              <button class="btn btn--sm" id="askYes" type="button">yes</button>
+              <button class="btn btn--sm btn--ghost" id="askNo" type="button">no</button>
+            </div>
+          </div>
+
+          <footer class="panel__foot">
+            <button class="link" id="forgetBtn" type="button">make it forget everything</button>
+          </footer>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

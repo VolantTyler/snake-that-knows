@@ -1,0 +1,12 @@
+{
+  "name": "snake-that-knows",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A snake that learns the rules by playing, narrates its thoughts, and works out what device you are holding.",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "dev": "python3 -m http.server 8080"
+  },
+  "license": "MIT"
+}
