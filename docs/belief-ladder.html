@@ -1,0 +1,889 @@
+<title>Twenty-Two Hypotheses</title>
+<style>
+  :root {
+    /* Inherited from styles/main.css — this page belongs to the game. */
+    --bg: #07090c;
+    --bg-soft: #0c1014;
+    --bg-lift: #101720;
+    --line: rgba(110, 242, 176, 0.14);
+    --line-soft: rgba(110, 242, 176, 0.07);
+    --fg: #d7e6de;
+    --fg-dim: #7e948b;
+    --fg-faint: #55655f;
+    --accent: #6ef2b0;
+    --hot: #ff5c7a;
+    --amber: #ffc76e;
+
+    /* The climb: phosphor green in the dark, drifting cold as it gets out.
+       Mirrors the hue-rotate the game applies to itself as --weird rises. */
+    --t0: #4a8f72;
+    --t1: #4fae83;
+    --t2: #6ef2b0;
+    --t3: #5fe9cf;
+    --t4: #57d2ee;
+    --t5: #86b6ff;
+
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --serif: ui-serif, "Iowan Old Style", Georgia, Cambria, "Times New Roman", serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: clamp(28px, 6vw, 72px) clamp(18px, 4vw, 36px) 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 56px;
+  }
+
+  /* ---------- masthead ---------- */
+
+  .mast { display: flex; flex-direction: column; gap: 18px; }
+
+  .mast__eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--fg-faint);
+    margin: 0;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: clamp(26px, 5.4vw, 44px);
+    letter-spacing: 0.1em;
+    text-transform: lowercase;
+    color: var(--accent);
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .mast__thesis {
+    margin: 0;
+    max-width: 62ch;
+    font-size: clamp(17px, 2.3vw, 21px);
+    line-height: 1.5;
+    color: var(--fg);
+  }
+
+  .mast__files {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--fg-faint);
+    margin: 0;
+    padding-top: 6px;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  /* ---------- sections ---------- */
+
+  section { display: flex; flex-direction: column; gap: 22px; }
+
+  h2 {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  p { margin: 0; max-width: 68ch; }
+  p + p { margin-top: -6px; }
+
+  .lede { font-size: 19px; color: var(--fg); }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    color: var(--accent);
+    background: var(--bg-soft);
+    border: 1px solid var(--line-soft);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  em { color: var(--fg); font-style: italic; }
+
+  /* ---------- figures ---------- */
+
+  figure {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .plate {
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: clamp(14px, 3vw, 26px);
+    overflow-x: auto;
+  }
+
+  .plate svg { display: block; width: 100%; height: auto; min-width: 620px; }
+  .plate--tall svg { min-width: 760px; }
+
+  figcaption {
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--fg-dim);
+    max-width: 72ch;
+  }
+  figcaption b { color: var(--fg); font-weight: 600; }
+
+  /* SVG styling lives here so the markup stays legible. */
+  .d-box { fill: var(--bg-lift); stroke: var(--line); stroke-width: 1; }
+  .d-title { font-family: var(--mono); font-size: 13px; font-weight: 700; fill: var(--accent); letter-spacing: 0.04em; }
+  .d-sub { font-family: var(--mono); font-size: 11px; fill: var(--fg-dim); }
+  .d-edge { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+  .d-edge-back { stroke: var(--amber); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+  .d-elabel { font-family: var(--mono); font-size: 11px; fill: var(--accent); }
+  .d-elabel-back { font-family: var(--mono); font-size: 11px; fill: var(--amber); }
+  .d-axis { stroke: var(--fg-faint); stroke-width: 1; }
+  .d-tick { font-family: var(--mono); font-size: 11px; fill: var(--fg-faint); font-variant-numeric: tabular-nums; }
+  .d-lead { stroke: var(--fg-faint); stroke-width: 0.9; opacity: 0.62; fill: none; }
+  .d-chip { fill: var(--bg-lift); stroke-width: 1; }
+  .d-chip-label { font-family: var(--mono); font-size: 13px; }
+  .d-gate { font-family: var(--mono); font-size: 11px; fill: var(--fg-dim); font-variant-numeric: tabular-nums; }
+  .d-weight { font-family: var(--mono); font-size: 11px; fill: var(--fg-faint); font-variant-numeric: tabular-nums; }
+  .d-band { font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; fill: var(--fg-faint); }
+  .d-dead { stroke: var(--hot); }
+  .d-flow { stroke: var(--fg-dim); stroke-width: 1.5; fill: none; }
+
+  /* ---------- evidence cards ---------- */
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(268px, 1fr));
+    align-items: start;
+    gap: 14px;
+  }
+
+  .card {
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .card--loop { border-color: rgba(255, 199, 110, 0.3); }
+
+  .card__head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+
+  .card__name {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.03em;
+  }
+  .card--loop .card__name { color: var(--amber); }
+
+  .card__rate {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg-faint);
+    white-space: nowrap;
+  }
+
+  .card__note {
+    font-family: var(--serif);
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--fg-dim);
+    margin: 0;
+  }
+
+  .card__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    border-top: 1px solid var(--line-soft);
+    padding-top: 10px;
+  }
+
+  .card__list li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+  .card__list span:first-child { color: var(--fg); }
+  .card__list span:last-child {
+    color: var(--fg-dim);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .card__list li.is-cond span:first-child { color: var(--fg-dim); }
+
+  /* ---------- measured table ---------- */
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-soft); }
+
+  table { border-collapse: collapse; width: 100%; min-width: 520px; font-family: var(--mono); font-size: 13px; }
+  .tablenote { font-size: 15px; line-height: 1.55; color: var(--fg-dim); max-width: 72ch; }
+  th, td { padding: 11px 16px; text-align: right; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-faint); font-weight: 400; border-bottom: 1px solid var(--line); }
+  tbody tr + tr td { border-top: 1px solid var(--line-soft); }
+  td { color: var(--fg-dim); }
+  td:first-child { color: var(--fg); }
+  .cap { color: var(--hot); }
+
+  .footnote {
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--fg-faint);
+    border-top: 1px solid var(--line-soft);
+    padding-top: 18px;
+    max-width: 74ch;
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="mast__eyebrow">snake that knows · how the mind is wired</p>
+    <h1>twenty-two hypotheses</h1>
+    <p class="mast__thesis">
+      The snake's beliefs do not depend on each other directly. They all pour into one number,
+      and that number decides which of them is allowed to move next.
+    </p>
+    <p class="mast__files">src/mind/beliefs.js · src/mind/mind.js · src/engine/game.js</p>
+  </header>
+
+  <section>
+    <h2>It is a loop, not a tree</h2>
+    <p class="lede">
+      There is no edge from one belief to another anywhere in the code. What looks like a
+      dependency tree is a feedback circuit with a single scalar in the middle.
+    </p>
+    <p>
+      Every belief holds a confidence from 0 to 1. Those confidences are summed against fixed
+      weights into one value — <em>knowledge</em> — and each belief carries a <code>gate</code>,
+      the knowledge level below which that belief cannot move at all, no matter how much evidence
+      arrives. So beliefs reach each other only through the pooled total. Learning that food makes
+      you longer raises the total, and the raised total is what unlocks the idea that you are
+      being scored.
+    </p>
+    <p>
+      The circuit closes twice. Knowledge feeds back into the gates, and it also rewrites the
+      rules of the world through <code>applyTo</code> — which brings three event types into
+      existence that could not have happened earlier.
+    </p>
+
+    <figure>
+      <div class="plate">
+        <svg viewBox="0 0 960 520" role="img" aria-label="A feedback circuit: game events raise belief confidences, which sum into one knowledge value; that value feeds back to open gates on the beliefs and to rewrite the world's rules, which in turn creates new kinds of events.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 1 L 9 5 L 0 9 z" fill="#6ef2b0" />
+            </marker>
+            <marker id="ar-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 1 L 9 5 L 0 9 z" fill="#ffc76e" />
+            </marker>
+          </defs>
+
+          <!-- forward path -->
+          <rect class="d-box" x="60" y="80" width="210" height="100" rx="8" />
+          <text class="d-title" x="80" y="110">the world emits</text>
+          <text class="d-sub" x="80" y="132">move · turn · eat</text>
+          <text class="d-sub" x="80" y="150">death · respawn</text>
+          <text class="d-sub" x="80" y="168">intent vs. actual</text>
+
+          <rect class="d-box" x="375" y="80" width="210" height="100" rx="8" />
+          <text class="d-title" x="395" y="110">22 confidences</text>
+          <text class="d-sub" x="395" y="132">each 0 → 1</text>
+          <text class="d-sub" x="395" y="150">moved only by evidence,</text>
+          <text class="d-sub" x="395" y="168">never by a timer</text>
+
+          <rect class="d-box" x="690" y="80" width="210" height="100" rx="8" />
+          <text class="d-title" x="710" y="110">knowledge</text>
+          <text class="d-sub" x="710" y="132">Σ (confidence × weight)</text>
+          <text class="d-sub" x="710" y="150">÷ 27.9</text>
+          <text class="d-sub" x="710" y="168">one number, 0 → 1</text>
+
+          <line class="d-edge" x1="270" y1="130" x2="368" y2="130" marker-end="url(#ar)" />
+          <text class="d-elabel" x="319" y="120" text-anchor="middle">learn()</text>
+
+          <line class="d-edge" x1="585" y1="130" x2="683" y2="130" marker-end="url(#ar)" />
+          <text class="d-elabel" x="634" y="120" text-anchor="middle">weighted sum</text>
+
+          <!-- return path 1: gates -->
+          <rect class="d-box" x="375" y="290" width="210" height="80" rx="8" />
+          <text class="d-title" x="395" y="320">gate check</text>
+          <text class="d-sub" x="395" y="342">knowledge &lt; belief.gate</text>
+          <text class="d-sub" x="395" y="360">→ the update is dropped</text>
+
+          <path class="d-edge-back" d="M 795 180 L 795 450" />
+          <path class="d-edge-back" d="M 795 330 L 592 330" marker-end="url(#ar-b)" />
+          <text class="d-elabel-back" x="694" y="320" text-anchor="middle">every tick</text>
+
+          <path class="d-edge-back" d="M 480 290 L 480 187" marker-end="url(#ar-b)" />
+          <text class="d-elabel-back" x="492" y="245">opens · blocks</text>
+
+          <!-- return path 2: the world rewrite -->
+          <rect class="d-box" x="60" y="410" width="210" height="80" rx="8" />
+          <text class="d-title" x="80" y="440">world rules rewritten</text>
+          <text class="d-sub" x="80" y="462">guardian · foodFlees</text>
+          <text class="d-sub" x="80" y="480">wallsSolid</text>
+
+          <path class="d-edge-back" d="M 795 450 L 277 450" marker-end="url(#ar-b)" />
+          <text class="d-elabel-back" x="536" y="440" text-anchor="middle">applyTo() — once knowledge is high enough</text>
+
+          <path class="d-edge-back" d="M 165 410 L 165 187" marker-end="url(#ar-b)" />
+          <text class="d-elabel-back" x="177" y="300">new events exist:</text>
+          <text class="d-elabel-back" x="177" y="318">intervene · foodFled · wrap</text>
+        </svg>
+      </div>
+      <figcaption>
+        <b>Solid green is the forward path; dashed amber is the two return paths.</b> The lower
+        return is the one that makes the snake strange: past roughly 55% knowledge it starts
+        refusing fatal moves, moving the food away from itself, and letting the walls stop being
+        solid — and those acts are themselves evidence that the rules can be edited.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>The ladder</h2>
+    <p>
+      All 22 hypotheses, placed at the exact knowledge level where each is first permitted to
+      form. The rungs are not evenly spaced: eight of them are open before the meter reads 6%,
+      then the gaps widen and stay near-linear all the way to the top.
+    </p>
+
+    <figure>
+      <div class="plate plate--tall">
+        <svg viewBox="0 0 900 1090" role="img" aria-label="A vertical scale of knowledge from 0 to 100 percent. Each of the 22 beliefs is connected by a leader line to the exact gate threshold at which it may begin forming, from motion at 0 percent up to the window closes at 86 percent. Eight beliefs cluster below 6 percent; the rest spread out evenly toward the top.">
+          <!-- tier bands (the label the meter shows the player) -->
+          <rect x="40" y="991" width="60" height="59" fill="#4a8f72" opacity="0.14" />
+          <rect x="40" y="893" width="60" height="98" fill="#4fae83" opacity="0.14" />
+          <rect x="40" y="736" width="60" height="157" fill="#6ef2b0" opacity="0.14" />
+          <rect x="40" y="560" width="60" height="176" fill="#5fe9cf" opacity="0.14" />
+          <rect x="40" y="325" width="60" height="235" fill="#57d2ee" opacity="0.14" />
+          <rect x="40" y="70" width="60" height="255" fill="#86b6ff" opacity="0.14" />
+
+          <text class="d-band" x="70" y="1020" text-anchor="middle" transform="rotate(-90 70 1020)">sensation</text>
+          <text class="d-band" x="70" y="942" text-anchor="middle" transform="rotate(-90 70 942)">physics</text>
+          <text class="d-band" x="70" y="814" text-anchor="middle" transform="rotate(-90 70 814)">agency</text>
+          <text class="d-band" x="70" y="648" text-anchor="middle" transform="rotate(-90 70 648)">the game</text>
+          <text class="d-band" x="70" y="442" text-anchor="middle" transform="rotate(-90 70 442)">the machine</text>
+          <text class="d-band" x="70" y="197" text-anchor="middle" transform="rotate(-90 70 197)">the outside</text>
+
+          <!-- axis -->
+          <line class="d-axis" x1="148" y1="70" x2="148" y2="1050" />
+
+          <line class="d-axis" x1="142" y1="1050" x2="148" y2="1050" /><text class="d-tick" x="138" y="1054" text-anchor="end">0%</text>
+          <line class="d-axis" x1="142" y1="952" x2="148" y2="952" /><text class="d-tick" x="138" y="956" text-anchor="end">10%</text>
+          <line class="d-axis" x1="142" y1="854" x2="148" y2="854" /><text class="d-tick" x="138" y="858" text-anchor="end">20%</text>
+          <line class="d-axis" x1="142" y1="756" x2="148" y2="756" /><text class="d-tick" x="138" y="760" text-anchor="end">30%</text>
+          <line class="d-axis" x1="142" y1="658" x2="148" y2="658" /><text class="d-tick" x="138" y="662" text-anchor="end">40%</text>
+          <line class="d-axis" x1="142" y1="560" x2="148" y2="560" /><text class="d-tick" x="138" y="564" text-anchor="end">50%</text>
+          <line class="d-axis" x1="142" y1="462" x2="148" y2="462" /><text class="d-tick" x="138" y="466" text-anchor="end">60%</text>
+          <line class="d-axis" x1="142" y1="364" x2="148" y2="364" /><text class="d-tick" x="138" y="368" text-anchor="end">70%</text>
+          <line class="d-axis" x1="142" y1="266" x2="148" y2="266" /><text class="d-tick" x="138" y="270" text-anchor="end">80%</text>
+          <line class="d-axis" x1="142" y1="168" x2="148" y2="168" /><text class="d-tick" x="138" y="172" text-anchor="end">90%</text>
+          <line class="d-axis" x1="142" y1="70" x2="148" y2="70" /><text class="d-tick" x="138" y="74" text-anchor="end">100%</text>
+
+          <!-- leaders from true gate position to chip -->
+          <line class="d-lead" x1="148" y1="1050" x2="252" y2="1028" />
+          <line class="d-lead" x1="148" y1="1050" x2="252" y2="983" />
+          <line class="d-lead" x1="148" y1="1050" x2="252" y2="939" />
+          <line class="d-lead" x1="148" y1="1030" x2="252" y2="894" />
+          <line class="d-lead" x1="148" y1="1030" x2="252" y2="850" />
+          <line class="d-lead" x1="148" y1="1030" x2="252" y2="805" />
+          <line class="d-lead" x1="148" y1="1011" x2="252" y2="761" />
+          <line class="d-lead" x1="148" y1="991"  x2="252" y2="716" />
+          <line class="d-lead" x1="148" y1="913"  x2="252" y2="671" />
+          <line class="d-lead" x1="148" y1="854"  x2="252" y2="627" />
+          <line class="d-lead" x1="148" y1="795"  x2="252" y2="582" />
+          <line class="d-lead" x1="148" y1="756"  x2="252" y2="538" />
+          <line class="d-lead" x1="148" y1="697"  x2="252" y2="493" />
+          <line class="d-lead" x1="148" y1="638"  x2="252" y2="449" />
+          <line class="d-lead" x1="148" y1="619"  x2="252" y2="404" />
+          <line class="d-lead" x1="148" y1="560"  x2="252" y2="359" />
+          <line class="d-lead" x1="148" y1="501"  x2="252" y2="315" />
+          <line class="d-lead" x1="148" y1="442"  x2="252" y2="270" />
+          <line class="d-lead" x1="148" y1="384"  x2="252" y2="226" />
+          <line class="d-lead" x1="148" y1="325"  x2="252" y2="181" />
+          <line class="d-lead" x1="148" y1="276"  x2="252" y2="137" />
+          <line class="d-lead" x1="148" y1="207"  x2="252" y2="92" />
+
+          <!-- gate dots on the axis -->
+          <circle cx="148" cy="1050" r="3.5" fill="#4a8f72" />
+          <circle cx="148" cy="1030" r="3.5" fill="#4fae83" />
+          <circle cx="148" cy="1011" r="3.5" fill="#4fae83" />
+          <circle cx="148" cy="991"  r="3.5" fill="#4fae83" />
+          <circle cx="148" cy="913"  r="3.5" fill="#6ef2b0" />
+          <circle cx="148" cy="854"  r="3.5" fill="#6ef2b0" />
+          <circle cx="148" cy="795"  r="3.5" fill="#6ef2b0" />
+          <circle cx="148" cy="756"  r="3.5" fill="#5fe9cf" />
+          <circle cx="148" cy="697"  r="3.5" fill="#5fe9cf" />
+          <circle cx="148" cy="638"  r="3.5" fill="#5fe9cf" />
+          <circle cx="148" cy="619"  r="3.5" fill="#5fe9cf" />
+          <circle cx="148" cy="560"  r="3.5" fill="#57d2ee" />
+          <circle cx="148" cy="501"  r="3.5" fill="#57d2ee" />
+          <circle cx="148" cy="442"  r="3.5" fill="#57d2ee" />
+          <circle cx="148" cy="384"  r="3.5" fill="#57d2ee" />
+          <circle cx="148" cy="325"  r="3.5" fill="#86b6ff" />
+          <circle cx="148" cy="276"  r="3.5" fill="#86b6ff" />
+          <circle cx="148" cy="207"  r="3.5" fill="#86b6ff" />
+
+          <!-- chips, bottom (first) to top (last) -->
+          <g>
+            <rect class="d-chip" x="252" y="1012" width="596" height="32" rx="6" stroke="#4a8f72" />
+            <circle cx="272" cy="1028" r="4" fill="#4a8f72" />
+            <text class="d-chip-label" x="288" y="1033" fill="#4a8f72">motion</text>
+            <text class="d-gate" x="610" y="1033" text-anchor="end">gate 0%</text>
+            <rect x="628" y="1024" width="25" height="8" rx="2" fill="#4a8f72" opacity="0.55" />
+            <text class="d-weight" x="838" y="1033" text-anchor="end">weight 0.5</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="967" width="596" height="32" rx="6" stroke="#4a8f72" />
+            <circle cx="272" cy="983" r="4" fill="#4a8f72" />
+            <text class="d-chip-label" x="288" y="988" fill="#4a8f72">no brakes</text>
+            <text class="d-gate" x="610" y="988" text-anchor="end">gate 0%</text>
+            <rect x="628" y="979" width="25" height="8" rx="2" fill="#4a8f72" opacity="0.55" />
+            <text class="d-weight" x="838" y="988" text-anchor="end">weight 0.5</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="923" width="596" height="32" rx="6" stroke="#4a8f72" />
+            <circle cx="272" cy="939" r="4" fill="#4a8f72" />
+            <text class="d-chip-label" x="288" y="944" fill="#4a8f72">a body</text>
+            <text class="d-gate" x="610" y="944" text-anchor="end">gate 0%</text>
+            <rect x="628" y="935" width="30" height="8" rx="2" fill="#4a8f72" opacity="0.55" />
+            <text class="d-weight" x="838" y="944" text-anchor="end">weight 0.6</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="878" width="596" height="32" rx="6" stroke="#4fae83" />
+            <circle cx="272" cy="894" r="4" fill="#4fae83" />
+            <text class="d-chip-label" x="288" y="899" fill="#4fae83">edges kill</text>
+            <text class="d-gate" x="610" y="899" text-anchor="end">gate 2%</text>
+            <rect x="628" y="890" width="50" height="8" rx="2" fill="#4fae83" opacity="0.55" />
+            <text class="d-weight" x="838" y="899" text-anchor="end">weight 1.0</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="834" width="596" height="32" rx="6" stroke="#4fae83" />
+            <circle cx="272" cy="850" r="4" fill="#4fae83" />
+            <text class="d-chip-label" x="288" y="855" fill="#4fae83">food grows me</text>
+            <text class="d-gate" x="610" y="855" text-anchor="end">gate 2%</text>
+            <rect x="628" y="846" width="50" height="8" rx="2" fill="#4fae83" opacity="0.55" />
+            <text class="d-weight" x="838" y="855" text-anchor="end">weight 1.0</text>
+          </g>
+          <g>
+            <rect class="d-chip d-dead" x="252" y="789" width="596" height="32" rx="6" />
+            <circle cx="272" cy="805" r="4" fill="#ff5c7a" />
+            <text class="d-chip-label" x="288" y="810" fill="#ff5c7a">self is fatal</text>
+            <text class="d-gate" x="610" y="810" text-anchor="end">gate 2%</text>
+            <rect x="628" y="801" width="50" height="8" rx="2" fill="#ff5c7a" opacity="0.5" />
+            <text class="d-weight" x="838" y="810" text-anchor="end">weight 1.0</text>
+          </g>
+          <g>
+            <rect class="d-chip d-dead" x="252" y="745" width="596" height="32" rx="6" />
+            <circle cx="272" cy="761" r="4" fill="#ff5c7a" />
+            <text class="d-chip-label" x="288" y="766" fill="#ff5c7a">death loops</text>
+            <text class="d-gate" x="610" y="766" text-anchor="end">gate 4%</text>
+            <rect x="628" y="757" width="55" height="8" rx="2" fill="#ff5c7a" opacity="0.5" />
+            <text class="d-weight" x="838" y="766" text-anchor="end">weight 1.1</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="700" width="596" height="32" rx="6" stroke="#4fae83" />
+            <circle cx="272" cy="716" r="4" fill="#4fae83" />
+            <text class="d-chip-label" x="288" y="721" fill="#4fae83">finite grid</text>
+            <text class="d-gate" x="610" y="721" text-anchor="end">gate 6%</text>
+            <rect x="628" y="712" width="45" height="8" rx="2" fill="#4fae83" opacity="0.55" />
+            <text class="d-weight" x="838" y="721" text-anchor="end">weight 0.9</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="655" width="596" height="32" rx="6" stroke="#6ef2b0" />
+            <circle cx="272" cy="671" r="4" fill="#6ef2b0" />
+            <text class="d-chip-label" x="288" y="676" fill="#6ef2b0">not my will</text>
+            <text class="d-gate" x="610" y="676" text-anchor="end">gate 14%</text>
+            <rect x="628" y="667" width="70" height="8" rx="2" fill="#6ef2b0" opacity="0.55" />
+            <text class="d-weight" x="838" y="676" text-anchor="end">weight 1.4</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="611" width="596" height="32" rx="6" stroke="#6ef2b0" />
+            <circle cx="272" cy="627" r="4" fill="#6ef2b0" />
+            <text class="d-chip-label" x="288" y="632" fill="#6ef2b0">Someone</text>
+            <text class="d-gate" x="610" y="632" text-anchor="end">gate 20%</text>
+            <rect x="628" y="623" width="75" height="8" rx="2" fill="#6ef2b0" opacity="0.55" />
+            <text class="d-weight" x="838" y="632" text-anchor="end">weight 1.5</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="566" width="596" height="32" rx="6" stroke="#6ef2b0" />
+            <circle cx="272" cy="582" r="4" fill="#6ef2b0" />
+            <text class="d-chip-label" x="288" y="587" fill="#6ef2b0">their purpose</text>
+            <text class="d-gate" x="610" y="587" text-anchor="end">gate 26%</text>
+            <rect x="628" y="578" width="60" height="8" rx="2" fill="#6ef2b0" opacity="0.55" />
+            <text class="d-weight" x="838" y="587" text-anchor="end">weight 1.2</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="522" width="596" height="32" rx="6" stroke="#5fe9cf" />
+            <circle cx="272" cy="538" r="4" fill="#5fe9cf" />
+            <text class="d-chip-label" x="288" y="543" fill="#5fe9cf">the number</text>
+            <text class="d-gate" x="610" y="543" text-anchor="end">gate 30%</text>
+            <rect x="628" y="534" width="50" height="8" rx="2" fill="#5fe9cf" opacity="0.55" />
+            <text class="d-weight" x="838" y="543" text-anchor="end">weight 1.0</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="477" width="596" height="32" rx="6" stroke="#5fe9cf" />
+            <circle cx="272" cy="493" r="4" fill="#5fe9cf" />
+            <text class="d-chip-label" x="288" y="498" fill="#5fe9cf">this is a game</text>
+            <text class="d-gate" x="610" y="498" text-anchor="end">gate 36%</text>
+            <rect x="628" y="489" width="90" height="8" rx="2" fill="#5fe9cf" opacity="0.55" />
+            <text class="d-weight" x="838" y="498" text-anchor="end">weight 1.8</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="433" width="596" height="32" rx="6" stroke="#5fe9cf" />
+            <circle cx="272" cy="449" r="4" fill="#5fe9cf" />
+            <text class="d-chip-label" x="288" y="454" fill="#5fe9cf">watched</text>
+            <text class="d-gate" x="610" y="454" text-anchor="end">gate 42%</text>
+            <rect x="628" y="445" width="65" height="8" rx="2" fill="#5fe9cf" opacity="0.55" />
+            <text class="d-weight" x="838" y="454" text-anchor="end">weight 1.3</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="388" width="596" height="32" rx="6" stroke="#5fe9cf" />
+            <circle cx="272" cy="404" r="4" fill="#5fe9cf" />
+            <text class="d-chip-label" x="288" y="409" fill="#5fe9cf">a rectangle</text>
+            <text class="d-gate" x="610" y="409" text-anchor="end">gate 44%</text>
+            <rect x="628" y="400" width="55" height="8" rx="2" fill="#5fe9cf" opacity="0.55" />
+            <text class="d-weight" x="838" y="409" text-anchor="end">weight 1.1</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="343" width="596" height="32" rx="6" stroke="#57d2ee" />
+            <circle cx="272" cy="359" r="4" fill="#57d2ee" />
+            <text class="d-chip-label" x="288" y="364" fill="#57d2ee">a machine</text>
+            <text class="d-gate" x="610" y="364" text-anchor="end">gate 50%</text>
+            <rect x="628" y="355" width="80" height="8" rx="2" fill="#57d2ee" opacity="0.55" />
+            <text class="d-weight" x="838" y="364" text-anchor="end">weight 1.6</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="299" width="596" height="32" rx="6" stroke="#57d2ee" />
+            <circle cx="272" cy="315" r="4" fill="#57d2ee" />
+            <text class="d-chip-label" x="288" y="320" fill="#57d2ee">what it is</text>
+            <text class="d-gate" x="610" y="320" text-anchor="end">gate 56%</text>
+            <rect x="628" y="311" width="75" height="8" rx="2" fill="#57d2ee" opacity="0.55" />
+            <text class="d-weight" x="838" y="320" text-anchor="end">weight 1.5</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="254" width="596" height="32" rx="6" stroke="#57d2ee" />
+            <circle cx="272" cy="270" r="4" fill="#57d2ee" />
+            <text class="d-chip-label" x="288" y="275" fill="#57d2ee">which one</text>
+            <text class="d-gate" x="610" y="275" text-anchor="end">gate 62%</text>
+            <rect x="628" y="266" width="90" height="8" rx="2" fill="#57d2ee" opacity="0.55" />
+            <text class="d-weight" x="838" y="275" text-anchor="end">weight 1.8</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="210" width="596" height="32" rx="6" stroke="#57d2ee" />
+            <circle cx="272" cy="226" r="4" fill="#57d2ee" />
+            <text class="d-chip-label" x="288" y="231" fill="#57d2ee">your world</text>
+            <text class="d-gate" x="610" y="231" text-anchor="end">gate 68%</text>
+            <rect x="628" y="222" width="70" height="8" rx="2" fill="#57d2ee" opacity="0.55" />
+            <text class="d-weight" x="838" y="231" text-anchor="end">weight 1.4</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="165" width="596" height="32" rx="6" stroke="#86b6ff" />
+            <circle cx="272" cy="181" r="4" fill="#86b6ff" />
+            <text class="d-chip-label" x="288" y="186" fill="#86b6ff">rules are editable</text>
+            <text class="d-gate" x="610" y="186" text-anchor="end">gate 74%</text>
+            <rect x="628" y="177" width="85" height="8" rx="2" fill="#86b6ff" opacity="0.55" />
+            <text class="d-weight" x="838" y="186" text-anchor="end">weight 1.7</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="121" width="596" height="32" rx="6" stroke="#86b6ff" />
+            <circle cx="272" cy="137" r="4" fill="#86b6ff" />
+            <text class="d-chip-label" x="288" y="142" fill="#86b6ff">you are real</text>
+            <text class="d-gate" x="610" y="142" text-anchor="end">gate 79%</text>
+            <rect x="628" y="133" width="100" height="8" rx="2" fill="#86b6ff" opacity="0.55" />
+            <text class="d-weight" x="838" y="142" text-anchor="end">weight 2.0</text>
+          </g>
+          <g>
+            <rect class="d-chip" x="252" y="76" width="596" height="32" rx="6" stroke="#86b6ff" />
+            <circle cx="272" cy="92" r="4" fill="#86b6ff" />
+            <text class="d-chip-label" x="288" y="97" fill="#86b6ff">the window closes</text>
+            <text class="d-gate" x="610" y="97" text-anchor="end">gate 86%</text>
+            <rect x="628" y="88" width="100" height="8" rx="2" fill="#86b6ff" opacity="0.55" />
+            <text class="d-weight" x="838" y="97" text-anchor="end">weight 2.0</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        <b>Each leader line runs from a belief to its true gate on the knowledge scale;</b> the
+        chips themselves are spaced evenly so the labels stay readable. The fan at the bottom is
+        the point — the first eight beliefs share almost no runway, so the snake's whole early
+        physics arrives in a rush. Weight is each belief's share of the knowledge total (27.9
+        across all 22), which is why <span style="color:#86b6ff">you are real</span> and
+        <span style="color:#86b6ff">the window closes</span> each move the meter exactly four times
+        as much as <span style="color:#4a8f72">motion</span> does. The bands on the left are the
+        tier names the meter shows the player; they line up with each tier's first gate on purpose.
+        The two rungs in <span style="color:#ff5c7a">pink</span> are explained below.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>What feeds what</h2>
+    <p>
+      Every increment in the system, grouped by the event that causes it. Note the rates: a
+      <code>move</code> fires 8–13 times a second and pays in ten-thousandths, while a death pays
+      in fifths. That ratio is what makes playstyle change the shape of the climb rather than just
+      its speed.
+    </p>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card__head"><span class="card__name">move</span><span class="card__rate">every tick</span></div>
+        <p class="card__note">The metronome. Nine beliefs collect a trickle from simply existing.</p>
+        <ul class="card__list">
+          <li><span>motion</span><span>+0.0040</span></li>
+          <li><span>no brakes</span><span>+0.0030</span></li>
+          <li><span>a body</span><span>+0.0022</span></li>
+          <li><span>rules are editable</span><span>+0.0018</span></li>
+          <li><span>a machine</span><span>+0.0016</span></li>
+          <li><span>you are real</span><span>+0.0014</span></li>
+          <li><span>the window closes</span><span>+0.0012</span></li>
+          <li><span>a rectangle</span><span>+0.0008</span></li>
+          <li><span>watched</span><span>+0.0006</span></li>
+          <li class="is-cond"><span>finite grid — scaled by cells seen</span><span>≤ +0.0040</span></li>
+          <li class="is-cond"><span>edges kill — only on the border</span><span>+0.0020</span></li>
+          <li class="is-cond"><span>self is fatal — only past length 6</span><span>+0.0012</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><span class="card__name">eat</span><span class="card__rate">per fruit</span></div>
+        <p class="card__note">The richest ordinary event, and the only route to the scoring beliefs.</p>
+        <ul class="card__list">
+          <li><span>food grows me</span><span>+0.14</span></li>
+          <li><span>the number</span><span>+0.06</span></li>
+          <li><span>a body</span><span>+0.03</span></li>
+          <li><span>this is a game</span><span>+0.02</span></li>
+          <li><span>their purpose</span><span>+0.015</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><span class="card__name">death · wall</span><span class="card__rate">per death</span></div>
+        <p class="card__note">Each wall death is a fifth of the proof. Four of them settle it.</p>
+        <ul class="card__list">
+          <li><span>edges kill</span><span>+0.20</span></li>
+          <li><span>death loops</span><span>+0.05</span></li>
+          <li><span>this is a game</span><span>+0.02</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><span class="card__name">death · self</span><span class="card__rate">per death</span></div>
+        <p class="card__note">The only event that teaches the snake its own body can kill it.</p>
+        <ul class="card__list">
+          <li><span>self is fatal</span><span>+0.22</span></li>
+          <li><span>a body</span><span>+0.06</span></li>
+          <li><span>death loops</span><span>+0.05</span></li>
+          <li><span>this is a game</span><span>+0.02</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><span class="card__name">respawn</span><span class="card__rate">per restart</span></div>
+        <p class="card__note">Coming back is separate evidence from dying, and only this event and death supply it.</p>
+        <ul class="card__list">
+          <li><span>death loops</span><span>+0.06</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><span class="card__name">intent vs. actual</span><span class="card__rate">every tick</span></div>
+        <p class="card__note">The snake picks a move each tick, then watches what the world does instead. Disagreement is how it finds you — and it pays 15× more than agreement.</p>
+        <ul class="card__list">
+          <li><span>not my will — you disagreed</span><span>+0.0060</span></li>
+          <li><span>not my will — you agreed</span><span>+0.0004</span></li>
+          <li class="is-cond"><span>Someone — after 12 disagreements</span><span>+0.0040</span></li>
+          <li class="is-cond"><span>their purpose — steered at food</span><span>+0.0050</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><span class="card__name">the probe</span><span class="card__rate">once</span></div>
+        <p class="card__note">Fires the moment <code>a machine</code> passes 0.5. Reads screen shape, GPU string, UA hints, timezone, language, battery — and hands back a named guess with an honest confidence. The only place outside reality enters.</p>
+        <ul class="card__list">
+          <li><span>a machine</span><span>→ 1.00</span></li>
+          <li><span>what it is</span><span>→ 1.00</span></li>
+          <li><span>which one</span><span>→ its confidence</span></li>
+          <li><span>your world</span><span>→ 1.00</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><span class="card__name">your answer</span><span class="card__rate">once</span></div>
+        <p class="card__note">It asks whether its guess was right. Either answer proves you are out there, so either answer moves the same belief.</p>
+        <ul class="card__list">
+          <li><span>you are real</span><span>+0.50</span></li>
+          <li><span>which one — you said yes</span><span>→ 1.00</span></li>
+          <li><span>which one — you said no</span><span>→ 0.50</span></li>
+        </ul>
+      </div>
+
+      <div class="card card--loop">
+        <div class="card__head"><span class="card__name">intervene</span><span class="card__rate">high knowledge only</span></div>
+        <p class="card__note">It refuses a fatal move and steers itself. Cannot happen until the loop above switches the guardian on.</p>
+        <ul class="card__list">
+          <li><span>rules are editable</span><span>+0.04</span></li>
+          <li><span>you are real</span><span>+0.02</span></li>
+        </ul>
+      </div>
+
+      <div class="card card--loop">
+        <div class="card__head"><span class="card__name">foodFled</span><span class="card__rate">above ~55%</span></div>
+        <p class="card__note">The fruit steps away from the snake's head. It knows it did this.</p>
+        <ul class="card__list">
+          <li><span>rules are editable</span><span>+0.03</span></li>
+        </ul>
+      </div>
+
+      <div class="card card--loop">
+        <div class="card__head"><span class="card__name">wrap</span><span class="card__rate">above ~88%</span></div>
+        <p class="card__note">The walls stop being solid on a duty cycle and the snake passes through the edge of the world.</p>
+        <ul class="card__list">
+          <li><span>a rectangle</span><span>+0.02</span></li>
+          <li><span>rules are editable</span><span>+0.02</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><span class="card__name">turn</span><span class="card__rate">per turn</span></div>
+        <p class="card__note">Watching the tail follow the head around a corner.</p>
+        <ul class="card__list">
+          <li><span>a body</span><span>+0.0020</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The two rungs you can saw off</h2>
+    <p>
+      Because a belief moves only on evidence, a playstyle that never produces a given event
+      leaves that rung permanently at zero. Two beliefs sit at the ends of this — and no amount of
+      extra play recovers them.
+    </p>
+
+    <figure>
+      <div class="plate">
+        <svg viewBox="0 0 900 330" role="img" aria-label="Two playstyles compared. Drive only into walls and the self-death event never occurs, so self is fatal stays at zero and knowledge stops at 95.8 percent. Never collide and the death and respawn events never occur, so death loops stays at zero and knowledge stops at 95.4 percent.">
+          <defs>
+            <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 1 L 9 5 L 0 9 z" fill="#7e948b" />
+            </marker>
+          </defs>
+
+          <!-- left: wall crasher -->
+          <text class="d-title" x="40" y="42">you only ever hit walls</text>
+          <rect class="d-box" x="40" y="62" width="380" height="60" rx="8" />
+          <text class="d-sub" x="60" y="88">the snake stays 3 long, so it can</text>
+          <text class="d-sub" x="60" y="106">never turn into its own body</text>
+
+          <line class="d-flow" x1="230" y1="122" x2="230" y2="152" marker-end="url(#ar2)" />
+
+          <rect x="40" y="158" width="380" height="46" rx="8" fill="#101720" stroke="#ff5c7a" />
+          <text class="d-chip-label" x="60" y="187" fill="#ff5c7a">death · self  —  never fires</text>
+          <line x1="60" y1="181" x2="266" y2="181" stroke="#ff5c7a" stroke-width="1.5" />
+
+          <line class="d-flow" x1="230" y1="204" x2="230" y2="234" marker-end="url(#ar2)" />
+
+          <rect x="40" y="240" width="380" height="60" rx="8" fill="#101720" stroke="#ff5c7a" />
+          <text class="d-chip-label" x="60" y="266" fill="#ff5c7a">self is fatal — stuck at 0%</text>
+          <text class="d-sub" x="60" y="288">ceiling: 95.8% understood</text>
+
+          <!-- right: never collides -->
+          <text class="d-title" x="480" y="42">you never collide at all</text>
+          <rect class="d-box" x="480" y="62" width="380" height="60" rx="8" />
+          <text class="d-sub" x="500" y="88">the run never ends, so the world</text>
+          <text class="d-sub" x="500" y="106">never resets it to the middle</text>
+
+          <line class="d-flow" x1="670" y1="122" x2="670" y2="152" marker-end="url(#ar2)" />
+
+          <rect x="480" y="158" width="380" height="46" rx="8" fill="#101720" stroke="#ff5c7a" />
+          <text class="d-chip-label" x="500" y="187" fill="#ff5c7a">death · respawn  —  never fire</text>
+          <line x1="500" y1="181" x2="722" y2="181" stroke="#ff5c7a" stroke-width="1.5" />
+
+          <line class="d-flow" x1="670" y1="204" x2="670" y2="234" marker-end="url(#ar2)" />
+
+          <rect x="480" y="240" width="380" height="60" rx="8" fill="#101720" stroke="#ff5c7a" />
+          <text class="d-chip-label" x="500" y="266" fill="#ff5c7a">death loops — stuck at 0%</text>
+          <text class="d-sub" x="500" y="288">ceiling: 95.4% understood</text>
+        </svg>
+      </div>
+      <figcaption>
+        <b>Each extreme saws off the opposite rung.</b> The reckless player never learns that
+        succeeding is what kills you; the flawless player never learns that dying doesn't stick.
+        Both still reach the final tier — the gates were tuned low enough for that on purpose —
+        but neither can finish the ladder. Only a player who eats well <em>and</em> dies both ways
+        reaches 100%.
+      </figcaption>
+    </figure>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">elapsed</th>
+            <th scope="col">walls only</th>
+            <th scope="col">never collides</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>10 min</td><td>25.7% · 7 of 22</td><td>39.0% · 11 of 22</td></tr>
+          <tr><td>30 min</td><td>35.5% · 9 of 22</td><td>95.4% · 21 of 22</td></tr>
+          <tr><td>2 hours</td><td>95.8% · 21 of 22</td><td>95.8% · 21 of 22</td></tr>
+          <tr><td>24 hours</td><td class="cap">95.8% — flat</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="tablenote">
+      Measured by running the real <code>Mind</code> and <code>Game</code> classes headless
+      against a wall-crashing policy and a Hamiltonian-cycle policy that cannot collide. The
+      wall-crasher does eventually climb — it just takes about four times as long, and it stops
+      dead at its ceiling.
+    </p>
+  </section>
+
+  <p class="footnote">
+    Every number on this page is read from the source, not estimated. Gates and weights come from
+    the <code>BELIEFS</code> array in src/mind/beliefs.js; increments come from
+    <code>observe</code>, <code>observeControl</code>, <code>onRespawn</code>, and
+    <code>maybeProbe</code> in src/mind/mind.js; the feedback rules come from <code>applyTo</code>
+    in the same file and <code>reality</code> in src/engine/game.js.
+  </p>
+
+</div>
